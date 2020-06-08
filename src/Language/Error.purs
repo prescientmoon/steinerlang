@@ -15,8 +15,8 @@ data ErrorSource
   | ValueError Expression
 
 instance showErrorSource :: Show ErrorSource where
-  show (TypeError t) = "TypeError (" <> show t <> ")"
-  show (ValueError ast) = "ValueError (" <> show ast <> ")"
+  show (TypeError t) = "type: " <> show t
+  show (ValueError ast) = "value: " <> show ast
 
 -- |
 -- Kind of errors which can occur during unification
@@ -38,7 +38,7 @@ newtype NotInScope
   = NotInScope String
 
 instance showNotInScope :: Show NotInScope where
-  show (NotInScope name) = "Variable " <> name <> " is not in scope."
+  show (NotInScope name) = "Variable " <> name <> " is not in scope"
 
 -- |
 -- Kind of errors which can occur during type inference
@@ -49,13 +49,19 @@ type InferenceErrorKinds r
     )
 
 -- |
+-- Sufix used for the printing of all Inference errors
+--
+inferenceErrorPrefix :: String
+inferenceErrorPrefix = "InferenceError: "
+
+-- |
 -- Helper to create a notInScope error
 --
 notInScope :: Maybe ErrorSource -> String -> SteinerError (InferenceErrorKinds ())
 notInScope source name =
   SteinerError
     { error: inj (SProxy :: SProxy "notInScope") $ NotInScope name
-    , showErr: match { notInScope: show :: NotInScope -> String }
+    , showErr: (inferenceErrorPrefix <> _) <<< match { notInScope: show :: NotInScope -> String }
     , source
     }
 
@@ -82,8 +88,8 @@ type InferenceErrors
   = SteinerError (InferenceErrorKinds ())
 
 instance showSteinerError :: Show (SteinerError e) where
-  show (SteinerError { error, source, showErr }) = prefix <> showErr error
-    where
-    prefix = case source of
-      Just actualSource -> show actualSource <> ": "
-      Nothing -> ""
+  show (SteinerError { error, source, showErr }) =
+    showErr error
+      <> case source of
+          Just actualSource -> "\n    at " <> show actualSource
+          Nothing -> ""

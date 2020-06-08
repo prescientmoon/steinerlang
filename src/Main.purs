@@ -23,6 +23,12 @@ import Text.Parsing.Parser (runParserT)
 replPrompt :: forall m. MonadEffect m => Interface -> m Unit
 replPrompt = setPrompt "$ "
 
+-- |
+-- This is a very basic repl I use in development.
+-- It shows me the type of an expression, 
+-- prints the error which might occur along the way,
+-- and calls itself recursively at the end.
+--
 repl :: forall m. MonadAff m => Interface -> m Unit
 repl interface = do
   replPrompt interface
