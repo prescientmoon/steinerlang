@@ -9,6 +9,7 @@ You can edit this file as you like.
   , "generics-rep"
   , "node-readline"
   , "node-readline-aff"
+  , "ordered-collections"
   , "parsing"
   , "psci-support"
   , "undefined"
