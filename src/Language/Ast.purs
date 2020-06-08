@@ -22,6 +22,7 @@ instance showLiteral :: Show Literal where
 data Expression
   = If Expression Expression Expression
   | Let String Expression Expression
+  | Lambda String Expression
   | Variable String
   | Literal Literal
 
