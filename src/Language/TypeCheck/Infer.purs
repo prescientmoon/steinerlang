@@ -48,4 +48,6 @@ infer (Variable name) = do
     Just ty' -> pure ty'
     Nothing -> fresh
 
-infer (Let name value body) = infer body
+infer (Let name value body) = do
+  typeValue <- infer value
+  withScope name typeValue $ infer body
