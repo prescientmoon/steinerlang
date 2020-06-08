@@ -23,7 +23,16 @@ newtype UnifyState
 -- A substitution maintains a mapping from unification variables to their values
 --
 newtype Substitution t
-  = Substitution (Map Int t)
+  = Substitution (Map Unknown t)
+
+instance semigroupSubstitution :: Substituable t t => Semigroup (Substitution t) where
+  append s1@(Substitution m1) (Substitution m2) =
+    let
+      m12 = (applySubstitution s1) <$> m2
+    in
+      Substitution $ m12 <> m1
+
+derive newtype instance monoidSubstitution :: Monoid (Substitution t)
 
 -- |
 -- A type which supports applying a substitution
@@ -47,7 +56,7 @@ class
 --
 class
   Incomplete t <= Unifiable m t where
-  unify :: t -> t -> UnifyT m Unit
+  unify :: t -> t -> UnifyT m (Substitution t)
 
 infixr 5 unify as ~
 

@@ -3,21 +3,17 @@ module Steiner.Language.Error where
 import Prelude
 import Control.Monad.Error.Class (class MonadError, catchError, throwError)
 import Data.List (List(..), (:))
-import Data.Tuple (Tuple)
 import Data.Variant (SProxy(..), Variant, inj, match)
 import Steienr.Data.String (indent)
 import Steiner.Language.Ast (Expression(..))
-import Steiner.Language.Type (Type)
 
 -- |
 -- Possible places an error can occur at
 --
 data ErrorSource
-  = TypeError Type
-  | ValueError Expression
+  = ValueError Expression
 
 instance showErrorSource :: Show ErrorSource where
-  show (TypeError t) = "type: " <> show t
   show (ValueError ast) = case ast of
     (Let name value _) -> case value of
       Lambda _ _ -> "function '" <> name <> "'"
@@ -25,18 +21,6 @@ instance showErrorSource :: Show ErrorSource where
     Variable name -> "variable '" <> name <> "'"
     Lambda from _ -> "annonymous function '" <> from <> " -> ...'"
     _ -> ""
-
--- |
--- Kind of errors which can occur during unification
---
-type UnificationErrorKinds r
-  = ( cannotUnify :: Tuple Type Type
-    , recusriveType ::
-      { ty :: Type
-      , varName :: String
-      }
-    | r
-    )
 
 -- |
 -- Kind of errors which can occur during type inference
@@ -61,7 +45,7 @@ showInferenceError =
 -- |
 -- Helper to create a notInScope error
 --
-notInScope :: String -> SteinerError (InferenceErrorKinds ())
+notInScope :: String -> InferenceErrors
 notInScope name =
   SteinerError
     { error: inj (SProxy :: SProxy "notInScope") name
@@ -78,12 +62,6 @@ newtype SteinerError e
   , source :: List ErrorSource
   , showErr :: Variant e -> String
   }
-
--- |
--- Errors which occur during unification
---
-type UnificationErrors
-  = UnificationErrorKinds ()
 
 -- |
 -- Errors which occur during type infernece

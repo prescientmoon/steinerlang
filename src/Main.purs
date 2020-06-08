@@ -16,6 +16,7 @@ import Node.ReadLine.Aff (prompt, setPrompt)
 import Node.ReadLine.Aff as RL
 import Steiner.Control.Monad.Effect (print, printError, printString)
 import Steiner.Control.Monad.Infer (InferOutput(..), runInferT)
+import Steiner.Control.Monad.Unify (runUnifyT, unify)
 import Steiner.Language.Parser (expression)
 import Steiner.Language.TypeCheck.Infer (infer)
 import Text.Parsing.Parser (runParserT)
@@ -39,11 +40,19 @@ repl interface = do
     Left err -> printError err
     Right ast -> do
       case runExcept $ runInferT $ infer ast of
-        Right (Tuple (Tuple ty (InferOutput { constraints })) _) -> do
+        Right (Tuple (Tuple ty (InferOutput { constraints })) st) -> do
           printString $ "The expression has inferred type: " <> show ty
           unless (Array.null constraints) do
             printString "Constraints:"
-            printString $ joinWith "\n" $ (uncurry \left right -> show left <> " ~ " <> show right) <$> constraints
+            printString $ joinWith "\n"
+              $ ( uncurry \left right ->
+                    let
+                      unificationResult = map (const unit) $ runExcept $ runUnifyT (unify left right) st
+                    in
+                      show left <> " ~ " <> show right <> " => "
+                        <> (show unificationResult)
+                )
+              <$> constraints
         Left err -> do
           print err
       repl interface
