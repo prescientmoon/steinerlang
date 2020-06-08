@@ -12,6 +12,7 @@ You can edit this file as you like.
   , "ordered-collections"
   , "parsing"
   , "psci-support"
+  , "stringutils"
   , "undefined"
   , "variant"
   ]
