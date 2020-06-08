@@ -1,6 +1,8 @@
 module Main where
 
 import Prelude
+import Control.Monad.Except (runExcept)
+import Data.Array as Array
 import Data.Either (Either(..), either)
 import Data.Identity (Identity(..))
 import Data.String (joinWith)
@@ -30,12 +32,14 @@ repl interface = do
   case ast of
     Left err -> printError err
     Right ast -> do
-      print ast
-      let
-        (Identity (Tuple (Tuple ty (InferOutput { constraints })) _)) = runInferT $ infer ast
-      printString $ "The expression has inferred type: " <> show ty
-      printString "Constraints:"
-      printString $ joinWith "\n" $ (uncurry \left right -> show left <> " ~ " <> show right) <$> constraints
+      case runExcept $ runInferT $ infer ast of
+        Right (Tuple (Tuple ty (InferOutput { constraints })) _) -> do
+          printString $ "The expression has inferred type: " <> show ty
+          unless (Array.null constraints) do
+            printString "Constraints:"
+            printString $ joinWith "\n" $ (uncurry \left right -> show left <> " ~ " <> show right) <$> constraints
+        Left err -> do
+          print err
       repl interface
 
 main :: Effect Unit

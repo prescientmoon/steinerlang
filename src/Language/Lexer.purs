@@ -20,7 +20,7 @@ language =
     , opStart: opChars
     , opLetter: opChars
     , caseSensitive: true
-    , reservedOpNames: [ "::", "->", "::", "\\" ]
+    , reservedOpNames: [ "::", "->", "\\" ]
     , reservedNames: [ "if", "then", "else", "let", "in" ]
     , identStart: letter
     , identLetter: alphaNum <|> oneOf [ '_', '\'' ]

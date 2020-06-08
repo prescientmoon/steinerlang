@@ -1,9 +1,10 @@
 module Steiner.Language.Type where
 
 import Prelude
+import Data.Identity (Identity)
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
-import Steiner.Control.Monad.Unify (class Incomplete, class Substituable, Substitution(..), Unknown, (?=))
+import Steiner.Control.Monad.Unify (class Incomplete, class Substituable, class Unifiable, Substitution(..), UnifyT, Unknown, (?=))
 
 -- |
 -- Types for the Steiner type system
@@ -54,3 +55,6 @@ instance incompleteType :: Incomplete Type where
   isUnknown (TUnknown name) = Just name
   isUnknown _ = Nothing
   unknowns = mempty
+
+instance unifiableType :: Unifiable (UnifyT Identity) Type where
+  unify left right = pure $ mempty

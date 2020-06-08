@@ -13,6 +13,7 @@ You can edit this file as you like.
   , "parsing"
   , "psci-support"
   , "undefined"
+  , "variant"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]

@@ -1,6 +1,8 @@
 module Steiner.Control.Monad.Unify where
 
 import Prelude
+import Control.Monad.Error.Class (class MonadThrow)
+import Control.Monad.Except (class MonadError)
 import Control.Monad.State (class MonadState, StateT, get, modify_, runStateT)
 import Data.Map (Map)
 import Data.Maybe (Maybe)
@@ -49,6 +51,9 @@ class
 
 infixr 5 unify as ~
 
+type UnificationError t
+  = ()
+
 -- |
 -- The type checking monad, which provides the state of the type checker, and error reporting capabilities
 --
@@ -82,3 +87,7 @@ derive newtype instance bindUnifyT :: Monad m => Bind (UnifyT m)
 derive newtype instance monadUnifyT :: Monad m => Monad (UnifyT m)
 
 derive newtype instance monadStateUnifyT :: Monad m => MonadState UnifyState (UnifyT m)
+
+derive newtype instance monadErrorUnifyT :: (Monad m, MonadError e m) => MonadError e (UnifyT m)
+
+derive newtype instance monadThrowUnifyT :: (Monad m, MonadThrow e m) => MonadThrow e (UnifyT m)

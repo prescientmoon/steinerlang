@@ -1,6 +1,7 @@
 module Steiner.Control.Monad.Infer where
 
 import Prelude
+import Control.Monad.Error.Class (class MonadError, class MonadThrow)
 import Control.Monad.Reader (class MonadAsk, class MonadReader, ReaderT, ask, local, runReaderT)
 import Control.Monad.State (class MonadState)
 import Control.Monad.Writer (class MonadTell, class MonadWriter, WriterT, runWriterT, tell)
@@ -91,3 +92,7 @@ derive newtype instance monadStateInferT :: Monad m => MonadState UnifyState (In
 derive newtype instance monadAskInferT :: Monad m => MonadAsk InferEnv (InferT m)
 
 derive newtype instance monadReaderInferT :: Monad m => MonadReader InferEnv (InferT m)
+
+derive newtype instance monadErrorInferT :: (Monad m, MonadError e m) => MonadError e (InferT m)
+
+derive newtype instance monadThrowInferT :: (Monad m, MonadThrow e m) => MonadThrow e (InferT m)
