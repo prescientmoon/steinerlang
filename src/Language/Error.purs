@@ -31,28 +31,24 @@ type UnificationErrorKinds r
     )
 
 -- |
--- Error for when a variable which doesn't exist in the current scope
--- is accessed by the progrramer
---
-newtype NotInScope
-  = NotInScope String
-
-instance showNotInScope :: Show NotInScope where
-  show (NotInScope name) = "Variable " <> name <> " is not in scope"
-
--- |
 -- Kind of errors which can occur during type inference
 --
 type InferenceErrorKinds r
-  = ( notInScope :: NotInScope
+  = ( notInScope :: String
     | r
     )
 
 -- |
--- Sufix used for the printing of all Inference errors
+-- Pretty print an inference error
 --
-inferenceErrorPrefix :: String
-inferenceErrorPrefix = "InferenceError: "
+showInferenceError :: Variant (InferenceErrorKinds ()) -> String
+showInferenceError =
+  (prefix <> _)
+    <<< match
+        { notInScope: \name -> "Variable " <> name <> " is not in scope"
+        }
+  where
+  prefix = "InferenceError: "
 
 -- |
 -- Helper to create a notInScope error
@@ -60,8 +56,8 @@ inferenceErrorPrefix = "InferenceError: "
 notInScope :: Maybe ErrorSource -> String -> SteinerError (InferenceErrorKinds ())
 notInScope source name =
   SteinerError
-    { error: inj (SProxy :: SProxy "notInScope") $ NotInScope name
-    , showErr: (inferenceErrorPrefix <> _) <<< match { notInScope: show :: NotInScope -> String }
+    { error: inj (SProxy :: SProxy "notInScope") name
+    , showErr: showInferenceError
     , source
     }
 
