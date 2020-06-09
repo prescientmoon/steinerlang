@@ -11,7 +11,9 @@ import Data.Tuple (Tuple(..), uncurry)
 import Effect (Effect)
 import Effect.Aff (runAff_)
 import Effect.Aff.Class (class MonadAff)
-import Effect.Class (class MonadEffect)
+import Effect.Class (class MonadEffect, liftEffect)
+import Effect.Class.Console (clear)
+import Node.Process (exit)
 import Node.ReadLine (Interface, createConsoleInterface, noCompletion)
 import Node.ReadLine.Aff (prompt, setPrompt)
 import Node.ReadLine.Aff as RL
@@ -54,8 +56,8 @@ repl interface = do
                         unificationResult = map (const unit) $ runExcept $ runUnifyT (unify left right) st
                       in
                         case unificationResult of
-                          Left err -> show err
                           Right _ -> show left <> " ~ " <> show right
+                          Left err -> show err
                   )
                 <$> constraints
           Left err -> do
@@ -68,7 +70,12 @@ repl interface = do
         Unify type' type'' -> case runExcept $ runUnifyT (unify type' type'') $ UnifyState { nextVar: 0 } of
           Left err -> print err
           Right (Tuple (Substitution subst) _) -> printString $ joinWith "\n" $ (uncurry \key ty -> "t" <> show key <> " = " <> show ty) <$> Map.toUnfoldable subst
-      repl interface
+        Quit -> do
+          RL.close interface
+          liftEffect $ exit 0
+        NoCommand -> pure unit
+        Clear -> clear
+  repl interface
 
 main :: Effect Unit
 main = do

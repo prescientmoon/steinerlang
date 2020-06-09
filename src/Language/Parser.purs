@@ -10,7 +10,6 @@ import Steiner.Language.Lexer (tokenParser)
 import Steiner.Language.Repl (Command(..))
 import Text.Parsing.Parser (ParserT, Parser)
 import Text.Parsing.Parser.String (eof)
-import Undefined (undefined)
 
 -- Parser for individual steiner expressions
 -- This references itself so we use it within a fixpoint operator
@@ -56,22 +55,22 @@ expression' expr = wrapped <|> ifExpr <|> letExpr <|> lambdaExpr <|> literal <|>
 
 -- The parser for the steiner syntax
 expression :: ParserT String Identity Expression
-expression = fix expression' <* eof
+expression = fix expression'
 
 -- |
 -- Parses a repl command
 --
 replCommand :: Parser String Command
-replCommand = typeOf <|> run <|> unify
+replCommand = (typeOf <|> clear <|> quit <|> run <|> noCommand) <* eof
   where
-  { reserved, identifier } = tokenParser
+  { reserved } = tokenParser
 
-  typeOf = do
-    reserved ":t"
-    expr <- expression
-    pure $ TypeOf expr
+  typeOf = reserved ":t" *> (TypeOf <$> expression)
 
-  unify = do
-    pure $ Unify undefined undefined
+  clear = Clear <$ reserved ":clear"
+
+  quit = Quit <$ reserved ":q"
 
   run = Exec <$> expression
+
+  noCommand = NoCommand <$ eof
