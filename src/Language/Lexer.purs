@@ -3,6 +3,7 @@ module Steiner.Language.Lexer (tokenParser) where
 import Prelude
 import Control.MonadPlus ((<|>))
 import Data.Identity (Identity)
+import Steiner.Language.Repl (replCommands)
 import Text.Parsing.Parser (ParserT)
 import Text.Parsing.Parser.String (class StringLike, oneOf)
 import Text.Parsing.Parser.Token (GenLanguageDef(..), GenTokenParser, LanguageDef, alphaNum, letter, makeTokenParser)
@@ -20,8 +21,8 @@ language =
     , opStart: opChars
     , opLetter: opChars
     , caseSensitive: true
-    , reservedOpNames: [ "::", "->", "\\" ]
-    , reservedNames: [ "if", "then", "else", "let", "in" ]
+    , reservedOpNames: [ ":", "::", "->", "\\" ]
+    , reservedNames: [ "if", "then", "else", "let", "in" ] <> replCommands
     , identStart: letter
     , identLetter: alphaNum <|> oneOf [ '_', '\'' ]
     }

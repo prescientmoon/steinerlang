@@ -5,6 +5,7 @@ import Control.Monad.Except (runExcept)
 import Data.Array as Array
 import Data.Either (Either(..), either)
 import Data.Identity (Identity(..))
+import Data.Map as Map
 import Data.String (joinWith)
 import Data.Tuple (Tuple(..), uncurry)
 import Effect (Effect)
@@ -16,8 +17,9 @@ import Node.ReadLine.Aff (prompt, setPrompt)
 import Node.ReadLine.Aff as RL
 import Steiner.Control.Monad.Effect (print, printError, printString)
 import Steiner.Control.Monad.Infer (InferOutput(..), runInferT)
-import Steiner.Control.Monad.Unify (runUnifyT, unify)
-import Steiner.Language.Parser (expression)
+import Steiner.Control.Monad.Unify (Substitution(..), UnifyState(..), runUnifyT, unify)
+import Steiner.Language.Parser (replCommand)
+import Steiner.Language.Repl (Command(..))
 import Steiner.Language.TypeCheck.Infer (infer)
 import Text.Parsing.Parser (runParserT)
 
@@ -35,26 +37,37 @@ repl interface = do
   replPrompt interface
   str <- prompt interface
   let
-    (Identity ast) = runParserT str expression
-  case ast of
+    (Identity parsingResult) = runParserT str replCommand
+  case parsingResult of
     Left err -> printError err
-    Right ast -> do
-      case runExcept $ runInferT $ infer ast of
-        Right (Tuple (Tuple ty (InferOutput { constraints })) st) -> do
-          printString $ "The expression has inferred type: " <> show ty
-          unless (Array.null constraints) do
-            printString "Constraints:"
-            printString $ joinWith "\n"
-              $ ( uncurry \left right ->
-                    let
-                      unificationResult = map (const unit) $ runExcept $ runUnifyT (unify left right) st
-                    in
-                      show left <> " ~ " <> show right <> " => "
-                        <> (show unificationResult)
-                )
-              <$> constraints
-        Left err -> do
-          print err
+    Right cmd -> do
+      case cmd of
+        Exec ast -> case runExcept $ runInferT $ infer ast of
+          Right (Tuple (Tuple ty (InferOutput { constraints })) st) -> do
+            printString "Executing code isn't a thing yet so here is some random data about the input:"
+            printString $ "The expression has inferred type: " <> show ty
+            unless (Array.null constraints) do
+              printString "Constraints:"
+              printString $ joinWith "\n"
+                $ ( uncurry \left right ->
+                      let
+                        unificationResult = map (const unit) $ runExcept $ runUnifyT (unify left right) st
+                      in
+                        case unificationResult of
+                          Left err -> show err
+                          Right _ -> show left <> " ~ " <> show right
+                  )
+                <$> constraints
+          Left err -> do
+            print err
+        TypeOf ast -> case runExcept $ runInferT $ infer ast of
+          Right (Tuple (Tuple ty (InferOutput { constraints })) st) -> do
+            print ty
+          Left err -> do
+            print err
+        Unify type' type'' -> case runExcept $ runUnifyT (unify type' type'') $ UnifyState { nextVar: 0 } of
+          Left err -> print err
+          Right (Tuple (Substitution subst) _) -> printString $ joinWith "\n" $ (uncurry \key ty -> "t" <> show key <> " = " <> show ty) <$> Map.toUnfoldable subst
       repl interface
 
 main :: Effect Unit
