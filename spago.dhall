@@ -11,6 +11,7 @@ You can edit this file as you like.
   , "node-readline-aff"
   , "ordered-collections"
   , "parsing"
+  , "profunctor-lenses"
   , "psci-support"
   , "stringutils"
   , "undefined"

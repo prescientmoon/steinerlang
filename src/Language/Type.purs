@@ -1,16 +1,25 @@
 module Steiner.Language.Type where
 
 import Prelude
-import Control.Monad.Error.Class (class MonadError, throwError)
-import Data.List (List(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
-import Data.String (joinWith)
-import Data.Tuple (Tuple(..))
-import Data.Variant (SProxy(..), Variant, inj, match)
-import Steienr.Data.String (indent)
-import Steiner.Control.Monad.Unify (class Incomplete, class Substituable, class Unifiable, Substitution(..), UnifyT, Unknown, (?=), (~))
-import Steiner.Language.Error (SteinerError(..))
+import Data.Set (Set)
+import Data.Set as Set
+import Steiner.Control.Monad.Unify (class Incomplete, class Substituable, Substitution(..), Unknown, unknowns, (?=))
+
+-- |
+-- Scope for skolem variables
+--
+newtype SkolemScope
+  = SkolemScope Unknown
+
+derive instance eqSkolemScope :: Eq SkolemScope
+
+-- |
+-- The name of a variable
+--
+type Name
+  = String
 
 -- |
 -- Types for the Steiner type system
@@ -22,6 +31,12 @@ data Type
   | TLambda Type Type
   -- Opaque types like Int or String
   | TConstant String
+  -- Forall types
+  | TForall String Type (Maybe SkolemScope)
+  -- Type variables 
+  | TVariable Name
+  -- Skolem variables 
+  | Skolem Name SkolemScope Int
 
 derive instance eqType :: Eq Type
 
@@ -46,9 +61,99 @@ typeString = TConstant "String"
 typeBoolean :: Type
 typeBoolean = TConstant "Boolean"
 
+-- |
+-- Get all the free type variables in a type
+--
+freeTypeVariables :: Type -> Set Name
+freeTypeVariables = go mempty
+  where
+  go bound (TVariable name)
+    | not $ name `Set.member` bound = Set.singleton name
+
+  go bound (TLambda from to) = go bound from <> go bound to
+
+  go bound (TForall var ty _) = go (Set.insert var bound) ty
+
+  go _ _ = mempty
+
+-- |
+-- Get all the Forall bound variables in a type
+--
+binders :: Type -> Set String
+binders (TForall name body _) = Set.insert name $ binders body
+
+binders (TLambda from to) = binders from <> binders to
+
+binders _ = mempty
+
+-- |
+-- Run a function on each level of a type.
+--
+everythingOnTypes :: forall r. (r -> r -> r) -> (Type -> r) -> Type -> r
+everythingOnTypes merge f = go
+  where
+  go t@(TLambda t1 t2) = f t `merge` go t1 `merge` go t2
+
+  go t@(TForall _ ty _) = f t `merge` go ty
+
+  go other = f other
+
+-- |
+-- Collect all type variables appearing in a type
+--
+usedTypeVariables :: Type -> Set String
+usedTypeVariables = everythingOnTypes (<>) go
+  where
+  go (TVariable v) = Set.singleton v
+
+  go _ = mempty
+
+-- |
+-- Replace a type variable, taking into account variable shadowing
+--
+replaceTypeVars :: String -> Type -> Type -> Type
+replaceTypeVars = replaceTypeVars' mempty
+  where
+  -- |
+  -- Generate a name which is not used for a variable
+  --
+  genName :: String -> Set String -> String
+  genName original inUse = try 0
+    where
+    try n
+      | (original <> show n) `Set.member` inUse = try $ n + 1
+      | otherwise = original <> show n
+
+  replaceTypeVars' bound name replacement = go bound
+    where
+    go :: Set String -> Type -> Type
+    go _ (TVariable name')
+      | name' == name = replacement
+
+    go bounds (TLambda t1 t2) = TLambda (go bounds t1) (go bounds t2)
+
+    go bounds rho@(TForall var ty scope)
+      | var == name = rho
+      | var `Set.member` usedTypeVariables replacement =
+        let
+          inUse = Set.insert name bounds <> usedTypeVariables replacement
+
+          var' = genName var inUse
+
+          ty' = replaceTypeVars' bounds var (TVariable var') ty
+        in
+          TForall var' (go (Set.insert var' bounds) ty') scope
+      | otherwise = TForall var (go (Set.insert var bounds) ty) scope
+
+    go _ ty = ty
+
+-- Typeclass instances
 instance showType :: Show Type where
   show (TUnknown num) = "t" <> show num
+  show (TVariable name) = name
   show (TConstant name) = name
+  show (Skolem name var id) = "skolem(" <> name <> ")"
+  show (TForall var ty _) = "forall " <> var <> ". " <> show ty
   show (TLambda from to) = prefix <> " -> " <> show to
     where
     prefix = if isFunction from then "(" <> show from <> ")" else show from
@@ -62,105 +167,7 @@ instance incompleteType :: Incomplete Type where
   unknown = TUnknown
   isUnknown (TUnknown name) = Just name
   isUnknown _ = Nothing
-  unknowns = mempty
-
-instance unifiableType :: MonadError UnificationErrors m => Unifiable m Type where
-  unify (TUnknown name) ty = bindVariable name ty
-  unify ty (TUnknown name) = bindVariable name ty
-  unify (TLambda from to) (TLambda from' to') = do
-    subst <- from ~ from'
-    subst' <- subst ?= to ~ subst ?= to'
-    pure $ subst' <> subst
-  unify left right
-    | left == right = pure mempty
-    | otherwise = throwError $ left `cannotUnify` right
-
--- |
--- Check if a type contains references to itself
---
-occursCheck :: Unknown -> Type -> Boolean
-occursCheck name (TUnknown name')
-  | name == name' = true
-
-occursCheck name (TLambda from to) = occursCheck name from || occursCheck name to
-
-occursCheck _ _ = false
-
--- |
--- Bind a variable to a type in a substitution
---
-bindVariable :: forall m. MonadError UnificationErrors m => Unknown -> Type -> UnifyT m (Substitution Type)
-bindVariable name ty
-  | occursCheck name ty = throwError $ recursiveType { varName: "t" <> show name, ty }
-  | otherwise = pure $ Substitution $ Map.singleton name ty
-
--- Unification related errors:
---
--- |
--- Details for errors generated by the fact a type contains references to itself
---
-type RecursiveTypeDetails
-  = { ty :: Type
-    , varName :: String
-    }
-
--- |
--- Kind of errors which can occur during unification
---
-type UnificationErrorKinds r
-  = ( cannotUnify :: Tuple Type Type
-    , recursiveType :: RecursiveTypeDetails
-    | r
-    )
-
--- |
--- Pretty print an inference error
---
-showUnificationError :: Variant (UnificationErrorKinds ()) -> String
-showUnificationError =
-  (prefix <> _)
-    <<< match
-        { recursiveType:
-          \{ ty, varName } ->
-            "Type\n"
-              <> (indent 4 $ varName <> " = " <> show ty)
-              <> "\ncontains a reference to itself."
-        , cannotUnify:
-          \(Tuple left right) ->
-            joinWith "\n"
-              [ "Cannot unify type"
-              , indent 4 $ show left
-              , "with type"
-              , indent 4 $ show right
-              ]
-        }
-  where
-  prefix = "UnificationError: "
-
--- |
--- Helper to create a recursiveType error
---
-recursiveType :: RecursiveTypeDetails -> UnificationErrors
-recursiveType data' =
-  SteinerError
-    { error: inj (SProxy :: SProxy "recursiveType") data'
-    , showErr: showUnificationError
-    , source: Nil
-    }
-
--- |
--- Helper to create a cannotUnify error
---
-cannotUnify :: Type -> Type -> UnificationErrors
-cannotUnify left right =
-  SteinerError
-    { error: inj (SProxy :: SProxy "cannotUnify") $ Tuple left right
-    , showErr: showUnificationError
-    , source: Nil
-    }
-
--- |
--- Errors which occur during unification
---
-type UnificationErrors
-  = SteinerError (UnificationErrorKinds ())
+  unknowns (TUnknown v) = Set.singleton v
+  unknowns (TLambda arg res) = unknowns arg <> unknowns res
+  unknowns (TForall _ ty _) = unknowns ty
+  unknowns _ = mempty

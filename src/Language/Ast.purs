@@ -6,6 +6,7 @@ module Steiner.Language.Ast
 import Prelude
 import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
+import Steiner.Language.Type (Type)
 
 data Literal
   = StringLit String
@@ -25,6 +26,10 @@ data Expression
   | Lambda String Expression
   | Variable String
   | Literal Literal
+  | Application Expression Expression
+  | Annotated Type Expression
+
+infixl 4 Application as ~~>
 
 derive instance genericExpression :: Generic Expression _
 
