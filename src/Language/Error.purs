@@ -1,11 +1,12 @@
 module Steiner.Language.Error where
 
 import Prelude
+import Data.Maybe (Maybe(..))
 import Data.String (joinWith)
-import Data.Tuple (Tuple(..))
+import Data.Tuple (Tuple(..), curry, uncurry)
 import Data.Variant (SProxy(..), Variant, inj, match)
 import Steienr.Data.String (indent)
-import Steiner.Language.Type (Type)
+import Steiner.Language.Type (Type(..))
 
 -- |
 -- Kind of errors which can occur during type inference
@@ -51,6 +52,7 @@ type RecursiveTypeDetails
 type UnificationErrorKinds r
   = ( cannotUnify :: Tuple Type Type
     , recursiveType :: RecursiveTypeDetails
+    , noSkolemScope :: Tuple String Type
     | r
     )
 
@@ -74,6 +76,12 @@ showUnificationError =
               , "with type"
               , indent 4 $ show right
               ]
+        , noSkolemScope:
+          uncurry \ident ty ->
+            joinWith "\n"
+              [ "The impossible happened! Cannot find skolem scope for type: "
+              , indent 4 $ show $ TForall ident ty Nothing
+              ]
         }
   where
   prefix = "UnificationError: "
@@ -87,6 +95,17 @@ recursiveType data' =
     { error: inj (SProxy :: SProxy "recursiveType") data'
     , showErr: showUnificationError
     }
+
+-- |
+-- Helper to create a noSkolemScope error
+--
+noSkolemScope :: String -> Type -> UnificationErrors
+noSkolemScope =
+  curry \data' ->
+    SteinerError
+      { error: inj (SProxy :: SProxy "noSkolemScope") data'
+      , showErr: showUnificationError
+      }
 
 -- |
 -- Helper to create a cannotUnify error
