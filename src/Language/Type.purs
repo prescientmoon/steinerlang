@@ -1,8 +1,10 @@
 module Steiner.Language.Type where
 
 import Prelude
+import Data.Identity (Identity(..))
 import Data.Map as Map
 import Data.Maybe (Maybe(..), fromMaybe)
+import Data.Newtype (unwrap)
 import Data.Set (Set)
 import Data.Set as Set
 import Steiner.Control.Monad.Unify (class Incomplete, class Substituable, Substitution(..), Unknown, unknowns, (?=))
@@ -36,7 +38,7 @@ data Type
   -- Type variables 
   | TVariable Name
   -- Skolem variables 
-  | Skolem Name SkolemScope Int
+  | Skolem Name Int SkolemScope
 
 derive instance eqType :: Eq Type
 
@@ -87,7 +89,7 @@ binders (TLambda from to) = binders from <> binders to
 binders _ = mempty
 
 -- |
--- Run a function on each level of a type.
+-- Run a function on each level of a type and merge the results
 --
 everythingOnTypes :: forall r. (r -> r -> r) -> (Type -> r) -> Type -> r
 everythingOnTypes merge f = go
@@ -97,6 +99,31 @@ everythingOnTypes merge f = go
   go t@(TForall _ ty _) = f t `merge` go ty
 
   go other = f other
+
+-- |
+-- Map every layer of a type to a monad of another type.
+--
+everywhereOnTypeM :: forall m. Monad m => (Type -> m Type) -> Type -> m Type
+everywhereOnTypeM f = go'
+  where
+  go continue (TLambda from to) = do
+    from' <- continue from
+    to' <- continue to
+    pure $ TLambda from' to'
+
+  go continue (TForall ident ty sco) = flip (TForall ident) sco <$> continue ty
+
+  go continue other = pure other
+
+  go' ty = do
+    ty' <- f ty
+    go go' ty'
+
+-- |
+-- Map each layer of a type
+--
+everywhereOnType :: (Type -> Type) -> Type -> Type
+everywhereOnType f = unwrap <<< everywhereOnTypeM (Identity <<< f)
 
 -- |
 -- Collect all type variables appearing in a type
@@ -152,7 +179,7 @@ instance showType :: Show Type where
   show (TUnknown num) = "t" <> show num
   show (TVariable name) = name
   show (TConstant name) = name
-  show (Skolem name var id) = "skolem(" <> name <> ")"
+  show (Skolem name var id) = "skolem(" <> show var <> ", " <> name <> ")"
   show (TForall var ty _) = "forall " <> var <> ". " <> show ty
   show (TLambda from to) = prefix <> " -> " <> show to
     where

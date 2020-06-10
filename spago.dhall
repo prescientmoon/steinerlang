@@ -5,6 +5,7 @@ You can edit this file as you like.
 { name = "my-project"
 , dependencies =
   [ "console"
+  , "debug"
   , "effect"
   , "generics-rep"
   , "node-readline"
@@ -16,6 +17,7 @@ You can edit this file as you like.
   , "stringutils"
   , "undefined"
   , "variant"
+  , "yarn"
   ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]

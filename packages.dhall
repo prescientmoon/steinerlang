@@ -140,6 +140,19 @@ let additions =
         , version =
             "v0.3.0"
         } 
+    , yarn =
+        { dependencies =
+            [ "unicode"
+            , "arrays"
+            , "generics-rep"
+            , "partial"
+            , "strings"
+            ]
+        , repo =
+            "https://github.com/thimoteus/purescript-yarn"
+        , version =
+            "v4.0.0"
+        }
     }
 
 in  upstream // overrides // additions

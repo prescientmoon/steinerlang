@@ -4,10 +4,9 @@ import Prelude
 import Control.Monad.Error.Class (class MonadError, throwError)
 import Data.Foldable (foldr)
 import Data.Maybe (Maybe(..))
-import Data.Tuple (Tuple(..))
 import Steiner.Control.Monad.Unify (UnifyT, Unknown, fresh, substitute)
 import Steiner.Language.Error (UnificationErrors, cannotUnify, noSkolemScope, recursiveType)
-import Steiner.Language.Type (SkolemScope, Type(..), freeTypeVariables, replaceTypeVars)
+import Steiner.Language.Type (SkolemScope(..), Type(..), everywhereOnTypeM, freeTypeVariables, replaceTypeVars)
 
 -- |
 -- Generate an unique unknown
@@ -16,10 +15,27 @@ freshUnknown :: forall m. Monad m => UnifyT Type m Type
 freshUnknown = TUnknown <$> fresh
 
 -- |
+-- Genreate an unique skolem scope
+--
+newSkolemScope :: forall m. Monad m => UnifyT Type m SkolemScope
+newSkolemScope = SkolemScope <$> fresh
+
+-- |
 -- Generate an unique skolem constant
 --
 newSkolemConstant :: forall m. Monad m => UnifyT Type m Int
 newSkolemConstant = fresh
+
+-- |
+-- Add skolem scopes to all Foralls which don't have one
+--
+introduceSkolemScopes :: forall m. Monad m => Type -> UnifyT Type m Type
+introduceSkolemScopes =
+  everywhereOnTypeM case _ of
+    TForall ident ty Nothing -> do
+      scope <- newSkolemScope
+      pure $ TForall ident ty $ Just scope
+    other -> pure other
 
 -- |
 -- Replace a single type variable with a new unification variable
@@ -46,7 +62,7 @@ instantiate ty = pure ty
 -- Skolemize a type variable by replacing its instances with fresh skolem constants
 -- 
 skolemize :: String -> SkolemScope -> Unknown -> Type -> Type
-skolemize ident scope = replaceTypeVars ident <<< Skolem ident scope
+skolemize ident scope constant = replaceTypeVars ident $ Skolem ident constant scope
 
 -- |
 -- Quantify over all free variables in a type
@@ -65,23 +81,31 @@ unify (TUnknown name) ty = substitute unify (recursiveType { ty, varName: "?" <>
 
 unify ty s@(TUnknown _) = unify s ty
 
-unify (TForall ident1 ty1 sc1) (TForall ident2 ty2 sc2) = case Tuple sc1 sc2 of
-  Tuple (Just sc1') (Just sc2') -> do
-    sko <- newSkolemConstant
-    let
-      sk1 = skolemize ident1 sc1' sko ty1
+unify (TForall ident ty (Just scope)) (TForall ident' ty' (Just scope')) = do
+  constant <- newSkolemConstant
+  let
+    skolemised = skolemize ident scope constant ty
 
-      sk2 = skolemize ident2 sc2' sko ty2
-    sk1 `unify` sk2
-  _ ->
-    throwError
-      $ case sc1 of
-          Nothing -> noSkolemScope ident1 ty1
-          _ -> noSkolemScope ident2 ty2
+    skolemised' = skolemize ident' scope' constant ty'
+  skolemised `unify` skolemised'
+
+unify (TForall ident ty (Just scope)) other = do
+  constant <- newSkolemConstant
+  let
+    skolemised = skolemize ident scope constant ty
+  skolemised `unify` other
+
+unify (TForall ident ty Nothing) _ = throwError $ noSkolemScope ident ty
+
+unify other forall'@(TForall _ _ _) = forall' `unify` other
+
+unify (Skolem _ constant _) (Skolem _ constant' _)
+  | constant == constant' = pure unit
 
 unify (TLambda from to) (TLambda from' to') = do
   unify from from'
   unify to to'
 
 unify left right
+  | left == right = pure unit
   | otherwise = throwError $ left `cannotUnify` right

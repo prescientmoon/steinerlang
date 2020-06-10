@@ -104,8 +104,8 @@ newtype UnifyT t m a
 -- |
 -- Run a computation in the Unify monad
 --
-runUnifyT :: forall t m a. UnifyT t m a -> UnifyState t -> m (Tuple a (UnifyState t))
-runUnifyT (UnifyT m) state = runStateT m state
+runUnifyT :: forall t m a. Substituable t t => UnifyT t m a -> m (Tuple a (UnifyState t))
+runUnifyT (UnifyT m) = runStateT m mempty
 
 -- |
 -- Generate a fresh unknown
@@ -115,6 +115,11 @@ fresh = do
   nextVar <- gets $ view _nextVar
   modify_ $ over _nextVar (1 + _)
   pure nextVar
+
+zonk :: forall t m. Substituable t t => MonadState (UnifyState t) m => t -> m t
+zonk ty = do
+  sub <- gets $ view _currentSubstitution
+  pure $ sub ?= ty
 
 -- |
 -- Check if a type contains references to itself
