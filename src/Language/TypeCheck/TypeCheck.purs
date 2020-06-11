@@ -3,11 +3,11 @@ module Steienr.Language.TypeCheck.TypeCheck where
 import Prelude
 import Control.Monad.Error.Class (class MonadError, catchError, throwError)
 import Data.Foldable (foldr)
-import Data.Variant (onMatch)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (uncurry)
-import Steiner.Control.Monad.Unify (UnifyT, Unknown, fresh, substitute)
-import Steiner.Language.Error (SteinerError(..), UnificationErrors, cannotUnify, noSkolemScope, notPolymorphicEnough, recursiveType)
+import Data.Variant (onMatch)
+import Steiner.Control.Monad.Unify (UnifyT, Unknown, fresh, substitute, zonk)
+import Steiner.Language.Error (SteinerError(..), UnificationErrors, cannotUnify, differentSkolemConstants, noSkolemScope, notPolymorphicEnough, recursiveType)
 import Steiner.Language.Type (SkolemScope(..), Type(..), everywhereOnTypeM, freeTypeVariables, replaceTypeVars)
 
 -- |
@@ -101,8 +101,9 @@ unify (TForall ident ty Nothing) _ = throwError $ noSkolemScope ident ty
 
 unify other forall'@(TForall _ _ _) = forall' `unify` other
 
-unify (Skolem _ constant _) (Skolem _ constant' _)
+unify (Skolem ident constant _) (Skolem ident' constant' _)
   | constant == constant' = pure unit
+  | otherwise = throwError $ ident `differentSkolemConstants` ident'
 
 unify (TLambda from to) (TLambda from' to') = do
   unify from from'
@@ -117,7 +118,10 @@ subsumes first second =
   catchError go \original@(SteinerError { error }) ->
     throwError $ onMatch { cannotUnify: uncurry notPolymorphicEnough } (const original) error
   where
-  go = subsumes' first second
+  go = do
+    first' <- zonk first
+    second' <- zonk second
+    subsumes' first' second'
 
 subsumes' :: forall m. MonadError UnificationErrors m => Type -> Type -> UnifyT Type m Unit
 subsumes' other (TForall ident ty _) = do

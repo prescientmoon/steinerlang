@@ -7,7 +7,7 @@ import Data.Maybe (Maybe(..), fromMaybe)
 import Data.Newtype (unwrap)
 import Data.Set (Set)
 import Data.Set as Set
-import Steiner.Control.Monad.Unify (class Incomplete, class Substituable, Substitution(..), Unknown, unknowns, (?=))
+import Steiner.Control.Monad.Unify (class Incomplete, class Substituable, Substitution(..), Unknown, unknowns)
 
 -- |
 -- Scope for skolem variables
@@ -178,7 +178,7 @@ replaceTypeVars = replaceTypeVars' mempty
 
 -- Typeclass instances
 instance showType :: Show Type where
-  show (TUnknown num) = "t" <> show num
+  show (TUnknown num) = "?" <> show num
   show (TVariable name) = name
   show (TConstant name) = name
   show (Skolem name var id) = name
@@ -188,9 +188,11 @@ instance showType :: Show Type where
     prefix = if needsParenthesis from then "(" <> show from <> ")" else show from
 
 instance substituableType :: Substituable Type Type where
-  applySubstitution subst (TLambda from to) = TLambda (subst ?= from) (subst ?= to)
-  applySubstitution (Substitution subst) ty@(TUnknown name) = fromMaybe ty $ Map.lookup name subst
-  applySubstitution _ ty = ty
+  applySubstitution (Substitution subst) = everywhereOnType go
+    where
+    go ty@(TUnknown name) = fromMaybe ty $ Map.lookup name subst
+
+    go ty = ty
 
 instance incompleteType :: Incomplete Type where
   unknown = TUnknown

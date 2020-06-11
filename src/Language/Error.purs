@@ -54,6 +54,7 @@ type UnificationErrorKinds r
     , notPolymorphicEnough :: Tuple Type Type
     , noSkolemScope :: Tuple String Type
     , recursiveType :: RecursiveTypeDetails
+    , differentSkolemConstants :: Tuple String String
     | r
     )
 
@@ -90,6 +91,15 @@ showUnificationError =
             joinWith "\n"
               [ "The impossible happened! Cannot find skolem scope for type: "
               , indent 4 $ show $ TForall ident ty Nothing
+              ]
+        , differentSkolemConstants:
+          uncurry \left right ->
+            joinWith "\n"
+              [ "Cannot unify type"
+              , indent 4 left
+              , "with type"
+              , indent 4 right
+              , "because the skolem constants do not match"
               ]
         }
   where
@@ -133,6 +143,16 @@ notPolymorphicEnough :: Type -> Type -> UnificationErrors
 notPolymorphicEnough left right =
   SteinerError
     { error: inj (SProxy :: SProxy "notPolymorphicEnough") $ Tuple left right
+    , showErr: showUnificationError
+    }
+
+-- |
+-- Helper to create a differentSkolemConstants error
+--
+differentSkolemConstants :: String -> String -> UnificationErrors
+differentSkolemConstants left right =
+  SteinerError
+    { error: inj (SProxy :: SProxy "differentSkolemConstants") $ Tuple left right
     , showErr: showUnificationError
     }
 

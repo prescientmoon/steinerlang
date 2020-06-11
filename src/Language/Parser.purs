@@ -1,4 +1,4 @@
-module Steiner.Language.Parser (expression, replCommand) where
+module Steiner.Language.Parser (expression, replCommand, parseType) where
 
 import Prelude
 import Control.Lazy (fix)
