@@ -14,6 +14,8 @@ You can edit this file as you like.
   , "parsing"
   , "profunctor-lenses"
   , "psci-support"
+  , "spec"
+  , "spec-discovery"
   , "stringutils"
   , "undefined"
   , "variant"
