@@ -51,8 +51,9 @@ type RecursiveTypeDetails
 --
 type UnificationErrorKinds r
   = ( cannotUnify :: Tuple Type Type
-    , recursiveType :: RecursiveTypeDetails
+    , notPolymorphicEnough :: Tuple Type Type
     , noSkolemScope :: Tuple String Type
+    , recursiveType :: RecursiveTypeDetails
     | r
     )
 
@@ -68,6 +69,14 @@ showUnificationError =
             "Type\n"
               <> (indent 4 $ varName <> " = " <> show ty)
               <> "\ncontains a reference to itself."
+        , notPolymorphicEnough:
+          uncurry \ty ty' ->
+            joinWith "\n"
+              [ "Type"
+              , indent 4 $ show ty'
+              , "is less polymorphic than type"
+              , indent 4 $ show ty
+              ]
         , cannotUnify:
           \(Tuple left right) ->
             joinWith "\n"
@@ -114,6 +123,16 @@ cannotUnify :: Type -> Type -> UnificationErrors
 cannotUnify left right =
   SteinerError
     { error: inj (SProxy :: SProxy "cannotUnify") $ Tuple left right
+    , showErr: showUnificationError
+    }
+
+-- |
+-- Helper to create a notPolymorphicEnough error
+--
+notPolymorphicEnough :: Type -> Type -> UnificationErrors
+notPolymorphicEnough left right =
+  SteinerError
+    { error: inj (SProxy :: SProxy "notPolymorphicEnough") $ Tuple left right
     , showErr: showUnificationError
     }
 

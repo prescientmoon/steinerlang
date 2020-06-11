@@ -43,12 +43,14 @@ data Type
 derive instance eqType :: Eq Type
 
 -- |
--- Check if a type is a function 
+-- Check if a type is a function skiping foralls. 
 --
-isFunction :: Type -> Boolean
-isFunction (TLambda _ _) = true
+needsParenthesis :: Type -> Boolean
+needsParenthesis (TLambda _ _) = true
 
-isFunction _ = false
+needsParenthesis (TForall _ _ _) = true
+
+needsParenthesis _ = false
 
 -- Types for literals
 typeInt :: Type
@@ -179,11 +181,11 @@ instance showType :: Show Type where
   show (TUnknown num) = "t" <> show num
   show (TVariable name) = name
   show (TConstant name) = name
-  show (Skolem name var id) = "skolem(" <> show var <> ", " <> name <> ")"
+  show (Skolem name var id) = name
   show (TForall var ty _) = "forall " <> var <> ". " <> show ty
   show (TLambda from to) = prefix <> " -> " <> show to
     where
-    prefix = if isFunction from then "(" <> show from <> ")" else show from
+    prefix = if needsParenthesis from then "(" <> show from <> ")" else show from
 
 instance substituableType :: Substituable Type Type where
   applySubstitution subst (TLambda from to) = TLambda (subst ?= from) (subst ?= to)

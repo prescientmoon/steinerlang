@@ -1,11 +1,13 @@
 module Steienr.Language.TypeCheck.TypeCheck where
 
 import Prelude
-import Control.Monad.Error.Class (class MonadError, throwError)
+import Control.Monad.Error.Class (class MonadError, catchError, throwError)
 import Data.Foldable (foldr)
+import Data.Variant (onMatch)
 import Data.Maybe (Maybe(..))
+import Data.Tuple (uncurry)
 import Steiner.Control.Monad.Unify (UnifyT, Unknown, fresh, substitute)
-import Steiner.Language.Error (UnificationErrors, cannotUnify, noSkolemScope, recursiveType)
+import Steiner.Language.Error (SteinerError(..), UnificationErrors, cannotUnify, noSkolemScope, notPolymorphicEnough, recursiveType)
 import Steiner.Language.Type (SkolemScope(..), Type(..), everywhereOnTypeM, freeTypeVariables, replaceTypeVars)
 
 -- |
@@ -109,3 +111,29 @@ unify (TLambda from to) (TLambda from' to') = do
 unify left right
   | left == right = pure unit
   | otherwise = throwError $ left `cannotUnify` right
+
+subsumes :: forall m. MonadError UnificationErrors m => Type -> Type -> UnifyT Type m Unit
+subsumes first second =
+  catchError go \original@(SteinerError { error }) ->
+    throwError $ onMatch { cannotUnify: uncurry notPolymorphicEnough } (const original) error
+  where
+  go = subsumes' first second
+
+subsumes' :: forall m. MonadError UnificationErrors m => Type -> Type -> UnifyT Type m Unit
+subsumes' other (TForall ident ty _) = do
+  instantiated <- replaceVarWithUnknown ident ty
+  subsumes other instantiated
+
+subsumes' (TForall ident ty Nothing) _ = throwError $ noSkolemScope ident ty
+
+subsumes' (TForall ident ty (Just scope)) other = do
+  constant <- newSkolemConstant
+  let
+    skolemised = skolemize ident scope constant ty
+  subsumes skolemised other
+
+subsumes' (TLambda from to) (TLambda from' to') = do
+  subsumes from' from
+  subsumes to to'
+
+subsumes' ty ty' = ty `unify` ty'

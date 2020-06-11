@@ -14,7 +14,7 @@ import Node.Process (exit)
 import Node.ReadLine (Interface, createConsoleInterface, noCompletion)
 import Node.ReadLine.Aff (prompt, setPrompt)
 import Node.ReadLine.Aff as RL
-import Steienr.Language.TypeCheck.TypeCheck (introduceSkolemScopes, unify)
+import Steienr.Language.TypeCheck.TypeCheck (introduceSkolemScopes, subsumes, unify)
 import Steiner.Control.Monad.Effect (print, printError, printString)
 import Steiner.Control.Monad.Unify (_currentSubstitution, runUnifyT, (?=))
 import Steiner.Language.Parser (replCommand)
@@ -50,6 +50,13 @@ execCommand interface str =
               pure do
                 print $ sub ?= type'
                 print $ sub ?= type''
+            Subsumes type' type'' -> do
+              st <-
+                runUnifyT do
+                  type''' <- introduceSkolemScopes type'
+                  type'''' <- introduceSkolemScopes type''
+                  subsumes type''' type''''
+              pure $ printString "Subsumption went fine!"
             Quit ->
               pure do
                 RL.close interface

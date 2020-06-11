@@ -17,6 +17,10 @@ data Command
   --
   | Unify Type Type
   -- |
+  -- Command to check if a type is at least as polymorphic as another
+  --
+  | Subsumes Type Type
+  -- |
   -- Command to execute some code. If no command is specified this is used by default
   --
   | Exec Expression
@@ -37,4 +41,4 @@ data Command
 -- Shortcuts for those commands used for parsing
 --
 replCommands :: Array String
-replCommands = (":" <> _) <$> [ "t", "u", "q", "clear" ]
+replCommands = (":" <> _) <$> [ "t", "u", "q", "s", "clear" ]
