@@ -16,7 +16,7 @@ import Node.ReadLine (Interface, createConsoleInterface, noCompletion)
 import Node.ReadLine.Aff (prompt, setPrompt)
 import Node.ReadLine.Aff as RL
 import Steienr.Data.String (indent)
-import Steienr.Language.TypeCheck.TypeCheck (check, introduceSkolemScopes, subsumes, unify)
+import Steienr.Language.TypeCheck.TypeCheck (check, infer, introduceSkolemScopes, subsumes, unify)
 import Steiner.Control.Monad.Effect (print, printError, printString)
 import Steiner.Control.Monad.Unify (_currentSubstitution, runUnifyT, (?=))
 import Steiner.Language.Parser (replCommand)
@@ -40,7 +40,20 @@ execCommand interface str =
         let
           (result :: Either _ _) = case command of
             Exec ast -> pure $ printString "Executing code isn't a thing yet:)"
-            TypeOf ast -> pure $ printString "todo"
+            TypeOf ast -> do
+              Tuple (Tuple newExpr type') state <-
+                runUnifyT do
+                  infer ast
+              let
+                sub = view _currentSubstitution state
+              pure $ printString
+                $ joinWith "\n"
+                    [ "Type inference finished succesfully!"
+                    , "The expression has type"
+                    , indent 4 $ show $ sub ?= type'
+                    , "and the new expression looks like"
+                    , indent 4 $ show newExpr
+                    ]
             Unify type' type'' -> do
               st <-
                 runUnifyT do
@@ -75,6 +88,14 @@ execCommand interface str =
                 liftEffect $ exit 0
             NoCommand -> pure $ pure unit
             Clear -> pure clear
+            InvalidCommand name ->
+              pure do
+                printString
+                  $ joinWith "\n"
+                      [ "Unknown command \"" <> name <> "\""
+                      , "Run :help to get a list of all available commands."
+                      , "(Hint: I didn't implement the help command yet)"
+                      ]
         case result of
           Left err -> printError err
           Right effect -> effect

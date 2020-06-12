@@ -107,17 +107,17 @@ parseType = fix parseType'
 -- Parses a repl command
 --
 replCommand :: Parser String Command
-replCommand = (typeOf <|> clear <|> quit <|> run <|> check <|> unify <|> subsumes <|> noCommand) <* eof
+replCommand = (typeOf <|> clear <|> quit <|> run <|> check <|> unify <|> subsumes <|> noCommand <|> invalidCommand) <* eof
   where
-  { reserved } = tokenParser
+  { reserved, identifier, reservedOp } = tokenParser
+
+  run = Exec <$> expression
 
   typeOf = reserved ":t" *> (TypeOf <$> expression)
 
   clear = Clear <$ reserved ":clear"
 
   quit = Quit <$ reserved ":q"
-
-  run = Exec <$> expression
 
   unify = do
     reserved ":u"
@@ -138,3 +138,5 @@ replCommand = (typeOf <|> clear <|> quit <|> run <|> check <|> unify <|> subsume
     pure $ Check ast ty
 
   noCommand = NoCommand <$ eof
+
+  invalidCommand = InvalidCommand <$> (reservedOp ":" *> identifier)

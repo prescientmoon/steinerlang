@@ -4,9 +4,10 @@ import Prelude
 import Control.Monad.Error.Class (class MonadError)
 import Data.Foldable (foldr)
 import Data.Maybe (Maybe(..))
+import Data.Tuple (Tuple(..))
 import Steiner.Control.Monad.Unify (UnifyT, Unknown, fresh, substitute, zonk)
 import Steiner.Language.Ast (Expression(..), Literal(..))
-import Steiner.Language.Error (SteinerError, TypeError(..), failWith, toSteinerError)
+import Steiner.Language.Error (SteinerError, TheImpossibleHappened(..), TypeError(..), failWith, toSteinerError)
 import Steiner.Language.Type (SkolemScope(..), Type(..), everywhereOnTypeM, freeTypeVariables, replaceTypeVars, typeFloat, typeInt, typeString)
 
 -- |
@@ -70,6 +71,20 @@ skolemize ident scope constant = replaceTypeVars ident $ Skolem ident constant s
 --
 quantify :: Type -> Type
 quantify ty = foldr (\a b -> TForall a b Nothing) ty $ freeTypeVariables ty
+
+-- | 
+-- Remove any ForAlls and ConstrainedType constructors in a type by introducing new unknowns
+-- or TypeClassDictionary values.
+--
+-- This is necessary during type checking to avoid unifying a polymorphic type with a
+-- unification variable.
+--
+instantiatePolyTypeWithUnknowns :: forall m. MonadError SteinerError m => Expression -> Type -> UnifyT Type m (Tuple Expression Type)
+instantiatePolyTypeWithUnknowns val (TForall ident ty _) = do
+  u <- freshUnknown
+  instantiatePolyTypeWithUnknowns val $ replaceTypeVars ident u ty
+
+instantiatePolyTypeWithUnknowns val ty = pure $ Tuple val ty
 
 -- |
 -- Find a substitution so 2 types are equal
@@ -150,9 +165,22 @@ subsumes' (TLambda from to) (TLambda from' to') = do
 subsumes' ty ty' = ty `unify` ty'
 
 -- |
+-- Infer the type of an expression
+--
+infer :: forall m. MonadError SteinerError m => Expression -> UnifyT Type m (Tuple Expression Type)
+infer expr = failWith $ InvalidInference expr
+
+-- |
 -- Check if an expression has a certain type
 --
 check :: forall m. MonadError SteinerError m => Expression -> Type -> UnifyT Type m Expression
+check expression unknown@(TUnknown _) = do
+  Tuple expression' ty <- infer expression
+  -- Don't unify an unknown with an inferred polytype
+  Tuple expression'' ty' <- instantiatePolyTypeWithUnknowns (TypedExpression true expression' ty) ty
+  unify ty' unknown
+  pure $ TypedExpression true expression'' ty'
+
 check v@(Literal (IntLit _)) t
   | t == typeInt = pure $ TypedExpression true v t
 

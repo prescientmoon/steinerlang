@@ -40,6 +40,10 @@ data Command
   -- Command to clear the console. I might remove this later.
   --
   | Clear
+  -- |
+  -- Some other unknown command
+  --
+  | InvalidCommand String
 
 -- |
 -- Shortcuts for those commands used for parsing

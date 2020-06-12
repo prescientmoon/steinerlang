@@ -4,6 +4,7 @@ module Steiner.Language.Error
   , SteinerError
   , RecursiveTypeDetails
   , TypeError(..)
+  , TheImpossibleHappened(..)
   , failWith
   , errorKind
   , toSteinerError
@@ -25,6 +26,7 @@ import Steiner.Language.Type (Type(..))
 data ErrorKind
   = TypeError
   | SyntaxError
+  | TheImpossibleHappened
 
 derive instance genericErrorKind :: Generic ErrorKind _
 
@@ -55,7 +57,6 @@ type RecursiveTypeDetails
 data TypeError
   = CannotUnify Type Type
   | NotPolymorphicEnough Type Type
-  | NoSkolemScope String Type
   | RecursiveType RecursiveTypeDetails
   | DifferentSkolemConstants String String
   | NeedsType Expression Type
@@ -82,11 +83,6 @@ instance showTypeError :: Show TypeError where
       , "with type"
       , indent 4 $ show right
       ]
-  show (NoSkolemScope ident ty) =
-    joinWith "\n"
-      [ "The impossible happened! Cannot find skolem scope for type: "
-      , indent 4 $ show $ TForall ident ty Nothing
-      ]
   show (DifferentSkolemConstants left right) =
     joinWith "\n"
       [ "Cannot unify type"
@@ -102,6 +98,28 @@ instance showTypeError :: Show TypeError where
       , "needs type"
       , indent 4 $ show ty
       ]
+
+-- |
+-- Errors which shouldn't appear to the end user
+--
+data TheImpossibleHappened
+  = NoSkolemScope String Type
+  | InvalidInference Expression
+
+instance showTheImpossibleHappened :: Show TheImpossibleHappened where
+  show (NoSkolemScope ident ty) =
+    joinWith "\n"
+      [ "The impossible happened! Cannot find skolem scope for type: "
+      , indent 4 $ show $ TForall ident ty Nothing
+      ]
+  show (InvalidInference ast) =
+    joinWith "\n"
+      [ "Invalid inference argument"
+      , indent 4 $ show ast
+      ]
+
+instance errorRepTheImpossibleHappened :: ErrorRep TheImpossibleHappened where
+  errorKind _ = TheImpossibleHappened
 
 -- |
 -- General type for errors
