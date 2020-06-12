@@ -69,7 +69,7 @@ skolemize ident scope constant = replaceTypeVars ident $ Skolem ident constant s
 skolemizeTypesInValue :: String -> SkolemScope -> Unknown -> Expression -> Expression
 skolemizeTypesInValue ident scope constant = everywhereOnExpression go
   where
-  go (TypedExpression check expr ty) = TypedExpression check expr $ skolemize ident scope constant ty
+  go (TypedExpression checked expr ty) = TypedExpression checked expr $ skolemize ident scope constant ty
 
   go other = other
 
@@ -206,5 +206,15 @@ check v@(Literal (FloatLit _)) t
 
 check v@(Literal (StringLit _)) t
   | t == typeString = pure $ TypedExpression true v t
+
+check (TypedExpression checked expression ty) other = do
+  ty' <- introduceSkolemScopes ty
+  subsumes ty' other
+  expression' <-
+    if not checked then
+      check expression ty'
+    else
+      pure expression
+  pure $ TypedExpression true (TypedExpression checked expression' ty') other
 
 check ast ty = failWith $ NeedsType ast ty

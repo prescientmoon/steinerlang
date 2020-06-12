@@ -105,6 +105,7 @@ instance showTypeError :: Show TypeError where
 data TheImpossibleHappened
   = NoSkolemScope String Type
   | InvalidInference Expression
+  | UnableToCheckSumsumption Expression Type Type
 
 instance showTheImpossibleHappened :: Show TheImpossibleHappened where
   show (NoSkolemScope ident ty) =
@@ -115,6 +116,15 @@ instance showTheImpossibleHappened :: Show TheImpossibleHappened where
   show (InvalidInference ast) =
     joinWith "\n"
       [ "Invalid inference argument"
+      , indent 4 $ show ast
+      ]
+  show (UnableToCheckSumsumption ast left right) =
+    joinWith "\n"
+      [ "Unable to check if"
+      , indent 4 $ show left
+      , indent 8 "<="
+      , indent 4 $ show right
+      , "with expression"
       , indent 4 $ show ast
       ]
 

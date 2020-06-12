@@ -21,9 +21,18 @@ import Text.Parsing.Parser.String (eof)
 -- This references itself so we use it within a fixpoint operator
 --
 expression' :: ParserT String Identity Expression -> ParserT String Identity Expression
-expression' expr = wrapped <|> ifExpr <|> letExpr <|> lambdaExpr <|> literal <|> variable
+expression' expr = do
+  expression'' <- atom
+  withAnnotation expression'' <|> pure expression''
   where
   { parens, identifier, reserved, reservedOp, stringLiteral, naturalOrFloat } = tokenParser
+
+  withAnnotation expression'' = do
+    annotation <-
+      try $ reservedOp "::" *> parseType
+    pure $ TypedExpression false expression'' annotation
+
+  atom = wrapped <|> ifExpr <|> letExpr <|> lambdaExpr <|> literal <|> variable
 
   wrapped = parens expr
 
