@@ -27,7 +27,7 @@ data Expression
   | Variable String
   | Literal Literal
   | Application Expression Expression
-  | Annotated Type Expression
+  | TypedExpression Boolean Expression Type
 
 infixl 4 Application as ~~>
 

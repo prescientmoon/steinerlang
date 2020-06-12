@@ -25,6 +25,10 @@ data Command
   --
   | Exec Expression
   -- |
+  -- Check that an expression has a certain type
+  --
+  | Check Expression Type
+  -- |
   -- This command just quits the repl
   --
   | Quit
@@ -41,4 +45,4 @@ data Command
 -- Shortcuts for those commands used for parsing
 --
 replCommands :: Array String
-replCommands = (":" <> _) <$> [ "t", "u", "q", "s", "clear" ]
+replCommands = (":" <> _) <$> [ "t", "u", "q", "s", "clear", "check" ]

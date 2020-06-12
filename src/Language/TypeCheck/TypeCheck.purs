@@ -1,13 +1,13 @@
 module Steienr.Language.TypeCheck.TypeCheck where
 
 import Prelude
-import Control.Monad.Error.Class (class MonadError, catchError, throwError)
+import Control.Monad.Error.Class (class MonadError)
 import Data.Foldable (foldr)
 import Data.Maybe (Maybe(..))
-import Data.Variant (onMatch)
 import Steiner.Control.Monad.Unify (UnifyT, Unknown, fresh, substitute, zonk)
-import Steiner.Language.Error (SteinerError(..), UnificationErrors, cannotUnify, differentSkolemConstants, noSkolemScope, notPolymorphicEnough, recursiveType)
-import Steiner.Language.Type (SkolemScope(..), Type(..), everywhereOnTypeM, freeTypeVariables, replaceTypeVars)
+import Steiner.Language.Ast (Expression(..), Literal(..))
+import Steiner.Language.Error (SteinerError, TypeError(..), failWith, toSteinerError)
+import Steiner.Language.Type (SkolemScope(..), Type(..), everywhereOnTypeM, freeTypeVariables, replaceTypeVars, typeFloat, typeInt, typeString)
 
 -- |
 -- Generate an unique unknown
@@ -74,11 +74,11 @@ quantify ty = foldr (\a b -> TForall a b Nothing) ty $ freeTypeVariables ty
 -- |
 -- Find a substitution so 2 types are equal
 --
-unify :: forall m. MonadError UnificationErrors m => Type -> Type -> UnifyT Type m Unit
+unify :: forall m. MonadError SteinerError m => Type -> Type -> UnifyT Type m Unit
 unify (TUnknown name) (TUnknown name')
   | name == name' = pure unit
 
-unify (TUnknown name) ty = substitute unify (recursiveType { ty, varName: "?" <> show name }) name ty
+unify (TUnknown name) ty = substitute unify (toSteinerError $ RecursiveType { ty, varName: "?" <> show name }) name ty
 
 unify ty s@(TUnknown _) = unify s ty
 
@@ -96,13 +96,13 @@ unify (TForall ident ty (Just scope)) other = do
     skolemised = skolemize ident scope constant ty
   skolemised `unify` other
 
-unify (TForall ident ty Nothing) _ = throwError $ noSkolemScope ident ty
+unify (TForall ident ty Nothing) _ = failWith $ NoSkolemScope ident ty
 
 unify other forall'@(TForall _ _ _) = forall' `unify` other
 
 unify (Skolem ident constant _) (Skolem ident' constant' _)
   | constant == constant' = pure unit
-  | otherwise = throwError $ ident `differentSkolemConstants` ident'
+  | otherwise = failWith $ ident `DifferentSkolemConstants` ident'
 
 unify (TLambda from to) (TLambda from' to') = do
   unify from from'
@@ -110,33 +110,32 @@ unify (TLambda from to) (TLambda from' to') = do
 
 unify left right
   | left == right = pure unit
-  | otherwise = throwError $ left `cannotUnify` right
+  | otherwise = failWith $ left `CannotUnify` right
 
 -- |
 -- Checks if a type is at least as polymorphic as another.
 -- This is a wrapper around subsumes' which intercepts unification errors and changes
 -- them to more accurate ones 
 --
-subsumes :: forall m. MonadError UnificationErrors m => Type -> Type -> UnifyT Type m Unit
+subsumes :: forall m. MonadError SteinerError m => Type -> Type -> UnifyT Type m Unit
 subsumes first second = do
+  -- TODO: find a way to make this show better error message
+  -- newErr = const $ NotPolymorphicEnough first' second'
+  -- catchError go \original@(SteinerError { error }) ->
+  -- failWith $ onMatch { cannotUnify: newErr, notPolymorphicEnough: newErr } (const original) error
   first' <- zonk first
   second' <- zonk second
-  let
-    go = subsumes' first' second'
-
-    newErr = const $ notPolymorphicEnough first' second'
-  catchError go \original@(SteinerError { error }) ->
-    throwError $ onMatch { cannotUnify: newErr, notPolymorphicEnough: newErr } (const original) error
+  subsumes' first' second'
 
 -- |
 -- Internal version of subsumes which doesn't intercept unification errors.
 --
-subsumes' :: forall m. MonadError UnificationErrors m => Type -> Type -> UnifyT Type m Unit
+subsumes' :: forall m. MonadError SteinerError m => Type -> Type -> UnifyT Type m Unit
 subsumes' other (TForall ident ty _) = do
   instantiated <- replaceVarWithUnknown ident ty
   subsumes other instantiated
 
-subsumes' (TForall ident ty Nothing) _ = throwError $ noSkolemScope ident ty
+subsumes' (TForall ident ty Nothing) _ = failWith $ NoSkolemScope ident ty
 
 subsumes' (TForall ident ty (Just scope)) other = do
   constant <- newSkolemConstant
@@ -149,3 +148,18 @@ subsumes' (TLambda from to) (TLambda from' to') = do
   subsumes to to'
 
 subsumes' ty ty' = ty `unify` ty'
+
+-- |
+-- Check if an expression has a certain type
+--
+check :: forall m. MonadError SteinerError m => Expression -> Type -> UnifyT Type m Expression
+check v@(Literal (IntLit _)) t
+  | t == typeInt = pure $ TypedExpression true v t
+
+check v@(Literal (FloatLit _)) t
+  | t == typeFloat = pure $ TypedExpression true v t
+
+check v@(Literal (StringLit _)) t
+  | t == typeString = pure $ TypedExpression true v t
+
+check ast ty = failWith $ NeedsType ast ty

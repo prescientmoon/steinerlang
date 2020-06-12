@@ -4,7 +4,8 @@ import Prelude
 import Data.Either (Either(..), either)
 import Data.Identity (Identity(..))
 import Data.Lens (view)
-import Data.Tuple (snd)
+import Data.String (joinWith)
+import Data.Tuple (Tuple(..), snd)
 import Effect (Effect)
 import Effect.Aff (runAff_)
 import Effect.Aff.Class (class MonadAff)
@@ -14,7 +15,8 @@ import Node.Process (exit)
 import Node.ReadLine (Interface, createConsoleInterface, noCompletion)
 import Node.ReadLine.Aff (prompt, setPrompt)
 import Node.ReadLine.Aff as RL
-import Steienr.Language.TypeCheck.TypeCheck (introduceSkolemScopes, subsumes, unify)
+import Steienr.Data.String (indent)
+import Steienr.Language.TypeCheck.TypeCheck (check, introduceSkolemScopes, subsumes, unify)
 import Steiner.Control.Monad.Effect (print, printError, printString)
 import Steiner.Control.Monad.Unify (_currentSubstitution, runUnifyT, (?=))
 import Steiner.Language.Parser (replCommand)
@@ -57,6 +59,16 @@ execCommand interface str =
                   type'''' <- introduceSkolemScopes type''
                   subsumes type''' type''''
               pure $ printString "Subsumption went fine!"
+            Check ast type' -> do
+              Tuple expr _ <-
+                runUnifyT do
+                  type'' <- introduceSkolemScopes type'
+                  check ast type''
+              pure $ printString
+                $ joinWith "\n"
+                    [ "Type checking went fine! Here's the new expression"
+                    , indent 4 $ show expr
+                    ]
             Quit ->
               pure do
                 RL.close interface
