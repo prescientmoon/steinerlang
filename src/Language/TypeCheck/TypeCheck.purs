@@ -4,7 +4,6 @@ import Prelude
 import Control.Monad.Error.Class (class MonadError, catchError, throwError)
 import Data.Foldable (foldr)
 import Data.Maybe (Maybe(..))
-import Data.Tuple (uncurry)
 import Data.Variant (onMatch)
 import Steiner.Control.Monad.Unify (UnifyT, Unknown, fresh, substitute, zonk)
 import Steiner.Language.Error (SteinerError(..), UnificationErrors, cannotUnify, differentSkolemConstants, noSkolemScope, notPolymorphicEnough, recursiveType)
@@ -113,16 +112,25 @@ unify left right
   | left == right = pure unit
   | otherwise = throwError $ left `cannotUnify` right
 
+-- |
+-- Checks if a type is at least as polymorphic as another.
+-- This is a wrapper around subsumes' which intercepts unification errors and changes
+-- them to more accurate ones 
+--
 subsumes :: forall m. MonadError UnificationErrors m => Type -> Type -> UnifyT Type m Unit
-subsumes first second =
-  catchError go \original@(SteinerError { error }) ->
-    throwError $ onMatch { cannotUnify: uncurry notPolymorphicEnough } (const original) error
-  where
-  go = do
-    first' <- zonk first
-    second' <- zonk second
-    subsumes' first' second'
+subsumes first second = do
+  first' <- zonk first
+  second' <- zonk second
+  let
+    go = subsumes' first' second'
 
+    newErr = const $ notPolymorphicEnough first' second'
+  catchError go \original@(SteinerError { error }) ->
+    throwError $ onMatch { cannotUnify: newErr, notPolymorphicEnough: newErr } (const original) error
+
+-- |
+-- Internal version of subsumes which doesn't intercept unification errors.
+--
 subsumes' :: forall m. MonadError UnificationErrors m => Type -> Type -> UnifyT Type m Unit
 subsumes' other (TForall ident ty _) = do
   instantiated <- replaceVarWithUnknown ident ty
