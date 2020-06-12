@@ -6,7 +6,7 @@ import Data.Foldable (foldr)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Steiner.Control.Monad.Unify (UnifyT, Unknown, fresh, substitute, zonk)
-import Steiner.Language.Ast (Expression(..), Literal(..))
+import Steiner.Language.Ast (Expression(..), Literal(..), everywhereOnExpression)
 import Steiner.Language.Error (SteinerError, TheImpossibleHappened(..), TypeError(..), failWith, toSteinerError)
 import Steiner.Language.Type (SkolemScope(..), Type(..), everywhereOnTypeM, freeTypeVariables, replaceTypeVars, typeFloat, typeInt, typeString)
 
@@ -65,6 +65,13 @@ instantiate ty = pure ty
 -- 
 skolemize :: String -> SkolemScope -> Unknown -> Type -> Type
 skolemize ident scope constant = replaceTypeVars ident $ Skolem ident constant scope
+
+skolemizeTypesInValue :: String -> SkolemScope -> Unknown -> Expression -> Expression
+skolemizeTypesInValue ident scope constant = everywhereOnExpression go
+  where
+  go (TypedExpression check expr ty) = TypedExpression check expr $ skolemize ident scope constant ty
+
+  go other = other
 
 -- |
 -- Quantify over all free variables in a type
@@ -174,6 +181,16 @@ infer expr = failWith $ InvalidInference expr
 -- Check if an expression has a certain type
 --
 check :: forall m. MonadError SteinerError m => Expression -> Type -> UnifyT Type m Expression
+check expression (TForall ident ty _) = do
+  scope <- newSkolemScope
+  constant <- newSkolemConstant
+  let
+    skolemisedType = skolemize ident scope constant ty
+
+    skolemisedExpression = skolemizeTypesInValue ident scope constant expression
+  expression' <- check skolemisedExpression skolemisedType
+  pure $ TypedExpression true expression' (TForall ident ty (Just scope))
+
 check expression unknown@(TUnknown _) = do
   Tuple expression' ty <- infer expression
   -- Don't unify an unknown with an inferred polytype
