@@ -74,15 +74,13 @@ execCommand interface str =
                   subsumes type''' type''''
               pure $ printString "Subsumption went fine!"
             Check ast type' -> do
-              Tuple expr _ <-
-                runWithUnifyT do
-                  type'' <- introduceSkolemScopes type'
-                  check ast type''
-              pure $ printString
-                $ joinWith "\n"
-                    [ "Type checking went fine! Here's the new expression"
-                    , indent 4 $ show $ typedToExpression expr
-                    ]
+              void
+                $ runWithUnifyT
+                $ introduceSkolemScopes type'
+                >>= check ast
+              pure
+                $ printString
+                    "Type checking went fine! Here's the new expression"
             Quit ->
               pure do
                 RL.close interface

@@ -10,7 +10,7 @@ import Steiner.Control.Monad.Check (CheckEnv, lookupVar, withVariable)
 import Steiner.Control.Monad.Unify (UnifyT, Unknown, fresh, substitute, zonk)
 import Steiner.Language.Ast (Expression(..), Literal(..), everywhereOnExpression)
 import Steiner.Language.Error (SteinerError, TheImpossibleHappened(..), TypeError(..), failWith, toSteinerError)
-import Steiner.Language.Type (SkolemScope(..), Type(..), everywhereOnTypeM, freeTypeVariables, replaceTypeVars, typeFloat, typeInt, typeString)
+import Steiner.Language.Type (SkolemScope(..), Type(..), everywhereOnTypeM, freeTypeVariables, replaceTypeVars, typeBoolean, typeFloat, typeInt, typeString)
 
 -- |
 -- Basically holds the same info as a TypedExpression but we are sure it can't be anything else.
@@ -192,6 +192,12 @@ infer :: forall m. MonadError SteinerError m => Expression -> UnifyT Type m Type
 infer expr = failWith $ InvalidInference expr
 
 -- |
+-- Check if an expression has a certain type and return an expression instead of a Typed
+--
+checkToExpression :: forall m. MonadError SteinerError m => MonadReader CheckEnv m => Expression -> Type -> UnifyT Type m Expression
+checkToExpression expr ty = typedToExpression <$> check expr ty
+
+-- |
 -- Check if an expression has a certain type
 --
 check :: forall m. MonadError SteinerError m => MonadReader CheckEnv m => Expression -> Type -> UnifyT Type m Typed
@@ -234,12 +240,18 @@ check expression@(Variable name) ty = do
       subsumes skolemisedVar ty
       pure $ Typed true expression ty
 
+check (If condition then' else') ty = do
+  condition' <- checkToExpression condition typeBoolean
+  then'' <- checkToExpression then' ty
+  else'' <- checkToExpression else' ty
+  pure $ Typed true (If condition' then'' else'') ty
+
 check (TypedExpression checked expression ty) other = do
   ty' <- introduceSkolemScopes ty
   subsumes ty' other
   expression' <-
     if not checked then
-      typedToExpression <$> check expression ty'
+      checkToExpression expression ty'
     else
       pure expression
   pure $ Typed true (TypedExpression checked expression' ty') other
