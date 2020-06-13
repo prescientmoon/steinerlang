@@ -16,7 +16,8 @@ import Node.ReadLine (Interface, createConsoleInterface, noCompletion)
 import Node.ReadLine.Aff (prompt, setPrompt)
 import Node.ReadLine.Aff as RL
 import Steienr.Data.String (indent)
-import Steienr.Language.TypeCheck.TypeCheck (check, infer, introduceSkolemScopes, subsumes, unify)
+import Steienr.Language.TypeCheck.TypeCheck (Typed(..), check, infer, introduceSkolemScopes, subsumes, typedToExpression, unify)
+import Steiner.Control.Monad.Check (runWithUnifyT)
 import Steiner.Control.Monad.Effect (print, printError, printString)
 import Steiner.Control.Monad.Unify (_currentSubstitution, runUnifyT, (?=))
 import Steiner.Language.Parser (replCommand)
@@ -41,7 +42,7 @@ execCommand interface str =
           (result :: Either _ _) = case command of
             Exec ast -> pure $ printString "Executing code isn't a thing yet:)"
             TypeOf ast -> do
-              Tuple (Tuple newExpr type') state <-
+              Tuple (Typed _ newExpr type') state <-
                 runUnifyT do
                   infer ast
               let
@@ -74,13 +75,13 @@ execCommand interface str =
               pure $ printString "Subsumption went fine!"
             Check ast type' -> do
               Tuple expr _ <-
-                runUnifyT do
+                runWithUnifyT do
                   type'' <- introduceSkolemScopes type'
                   check ast type''
               pure $ printString
                 $ joinWith "\n"
                     [ "Type checking went fine! Here's the new expression"
-                    , indent 4 $ show expr
+                    , indent 4 $ show $ typedToExpression expr
                     ]
             Quit ->
               pure do

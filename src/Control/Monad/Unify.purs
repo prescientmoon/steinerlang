@@ -3,6 +3,7 @@ module Steiner.Control.Monad.Unify where
 import Prelude
 import Control.Monad.Error.Class (class MonadThrow, throwError)
 import Control.Monad.Except (class MonadError)
+import Control.Monad.Reader (class MonadAsk, class MonadReader)
 import Control.Monad.State (class MonadState, StateT, gets, modify_, runStateT)
 import Data.Lens (Lens', over, view)
 import Data.Lens.Record (prop)
@@ -171,3 +172,7 @@ derive newtype instance monadStateUnifyT :: Monad m => MonadState (UnifyState t)
 derive newtype instance monadErrorUnifyT :: (Monad m, MonadError e m) => MonadError e (UnifyT t m)
 
 derive newtype instance monadThrowUnifyT :: (Monad m, MonadThrow e m) => MonadThrow e (UnifyT t m)
+
+derive newtype instance monadAskUnifyT :: MonadAsk e m => MonadAsk e (UnifyT t m)
+
+derive newtype instance monadReaderUnifyT :: MonadReader e m => MonadReader e (UnifyT t m)

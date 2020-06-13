@@ -2,13 +2,27 @@ module Steienr.Language.TypeCheck.TypeCheck where
 
 import Prelude
 import Control.Monad.Error.Class (class MonadError)
+import Control.Monad.Reader (class MonadReader)
 import Data.Foldable (foldr)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
+import Steiner.Control.Monad.Check (CheckEnv, withVariable)
 import Steiner.Control.Monad.Unify (UnifyT, Unknown, fresh, substitute, zonk)
 import Steiner.Language.Ast (Expression(..), Literal(..), everywhereOnExpression)
 import Steiner.Language.Error (SteinerError, TheImpossibleHappened(..), TypeError(..), failWith, toSteinerError)
 import Steiner.Language.Type (SkolemScope(..), Type(..), everywhereOnTypeM, freeTypeVariables, replaceTypeVars, typeFloat, typeInt, typeString)
+
+-- |
+-- Basically holds the same info as a TypedExpression but we are sure it can't be anything else.
+--
+data Typed
+  = Typed Boolean Expression Type
+
+-- |
+-- Transform a Typed value into an expression
+--
+typedToExpression :: Typed -> Expression
+typedToExpression (Typed a b c) = TypedExpression a b c
 
 -- |
 -- Generate an unique unknown
@@ -174,13 +188,13 @@ subsumes' ty ty' = ty `unify` ty'
 -- |
 -- Infer the type of an expression
 --
-infer :: forall m. MonadError SteinerError m => Expression -> UnifyT Type m (Tuple Expression Type)
+infer :: forall m. MonadError SteinerError m => Expression -> UnifyT Type m Typed
 infer expr = failWith $ InvalidInference expr
 
 -- |
 -- Check if an expression has a certain type
 --
-check :: forall m. MonadError SteinerError m => Expression -> Type -> UnifyT Type m Expression
+check :: forall m. MonadError SteinerError m => MonadReader CheckEnv m => Expression -> Type -> UnifyT Type m Typed
 check expression (TForall ident ty _) = do
   scope <- newSkolemScope
   constant <- newSkolemConstant
@@ -189,32 +203,36 @@ check expression (TForall ident ty _) = do
 
     skolemisedExpression = skolemizeTypesInValue ident scope constant expression
   expression' <- check skolemisedExpression skolemisedType
-  pure $ TypedExpression true expression' (TForall ident ty (Just scope))
+  pure $ Typed true (typedToExpression expression') (TForall ident ty (Just scope))
 
 check expression unknown@(TUnknown _) = do
-  Tuple expression' ty <- infer expression
+  Typed _ expression' ty <- infer expression
   -- Don't unify an unknown with an inferred polytype
   Tuple expression'' ty' <- instantiatePolyTypeWithUnknowns (TypedExpression true expression' ty) ty
   unify ty' unknown
-  pure $ TypedExpression true expression'' ty'
+  pure $ Typed true expression'' ty'
 
 check v@(Literal (IntLit _)) t
-  | t == typeInt = pure $ TypedExpression true v t
+  | t == typeInt = pure $ Typed true v t
 
 check v@(Literal (FloatLit _)) t
-  | t == typeFloat = pure $ TypedExpression true v t
+  | t == typeFloat = pure $ Typed true v t
 
 check v@(Literal (StringLit _)) t
-  | t == typeString = pure $ TypedExpression true v t
+  | t == typeString = pure $ Typed true v t
+
+check (Lambda arg body) (TLambda from to) = do
+  ret <- withVariable arg from $ check body to
+  pure $ Typed true (Lambda arg (typedToExpression ret)) (TLambda from to)
 
 check (TypedExpression checked expression ty) other = do
   ty' <- introduceSkolemScopes ty
   subsumes ty' other
   expression' <-
     if not checked then
-      check expression ty'
+      typedToExpression <$> check expression ty'
     else
       pure expression
-  pure $ TypedExpression true (TypedExpression checked expression' ty') other
+  pure $ Typed true (TypedExpression checked expression' ty') other
 
 check ast ty = failWith $ NeedsType ast ty
