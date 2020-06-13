@@ -6,7 +6,7 @@ import Control.Monad.Reader (class MonadReader)
 import Data.Foldable (foldr)
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
-import Steiner.Control.Monad.Check (CheckEnv, withVariable)
+import Steiner.Control.Monad.Check (CheckEnv, lookupVar, withVariable)
 import Steiner.Control.Monad.Unify (UnifyT, Unknown, fresh, substitute, zonk)
 import Steiner.Language.Ast (Expression(..), Literal(..), everywhereOnExpression)
 import Steiner.Language.Error (SteinerError, TheImpossibleHappened(..), TypeError(..), failWith, toSteinerError)
@@ -224,6 +224,15 @@ check v@(Literal (StringLit _)) t
 check (Lambda arg body) (TLambda from to) = do
   ret <- withVariable arg from $ check body to
   pure $ Typed true (Lambda arg (typedToExpression ret)) (TLambda from to)
+
+check expression@(Variable name) ty = do
+  maybeVar <- lookupVar name
+  case maybeVar of
+    Nothing -> failWith $ TypedNotInScope name ty
+    Just var -> do
+      skolemisedVar <- introduceSkolemScopes var
+      subsumes skolemisedVar ty
+      pure $ Typed true expression ty
 
 check (TypedExpression checked expression ty) other = do
   ty' <- introduceSkolemScopes ty

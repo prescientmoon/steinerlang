@@ -1,8 +1,8 @@
 module Steiner.Control.Monad.Check where
 
 import Prelude
-import Control.Monad.Reader (class MonadAsk, class MonadReader, Reader, ReaderT, local, runReaderT)
-import Data.Lens (Lens', Traversal', set)
+import Control.Monad.Reader (class MonadReader, ReaderT, asks, local, runReaderT)
+import Data.Lens (Lens', Traversal', preview, set)
 import Data.Lens.At (at)
 import Data.Lens.Record (prop)
 import Data.Map (Map)
@@ -42,27 +42,13 @@ runWithUnifyT :: forall m a. UnifyT Type (ReaderT CheckEnv m) a -> m (Tuple a (U
 runWithUnifyT = flip runReaderT mempty <<< runUnifyT
 
 -- |
--- The check monad offers access to types of variables in scope.
---
-newtype Check a
-  = Check (Reader CheckEnv a)
-
--- |
 -- Run a computation with a new variable in scope
 --
 withVariable :: forall m a. MonadReader CheckEnv m => String -> Type -> m a -> m a
 withVariable name = local <<< set (_atType name) <<< Just
 
-derive instance functorCheck :: Functor Check
-
-derive newtype instance applyCheck :: Apply Check
-
-derive newtype instance applicativeCheck :: Applicative Check
-
-derive newtype instance bindCheck :: Bind Check
-
-derive newtype instance monadCheck :: Monad Check
-
-derive newtype instance monadAskCheck :: MonadAsk CheckEnv Check
-
-derive newtype instance monadReaderCheck :: MonadReader CheckEnv Check
+-- |
+-- Lookup a type variable in the envirnoment
+--
+lookupVar :: forall m. MonadReader CheckEnv m => String -> m (Maybe Type)
+lookupVar name = asks $ join <<< (preview $ _atType name)

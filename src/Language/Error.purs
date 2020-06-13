@@ -16,7 +16,7 @@ import Data.Generic.Rep (class Generic)
 import Data.Generic.Rep.Show (genericShow)
 import Data.Maybe (Maybe(..))
 import Data.String (joinWith)
-import Steienr.Data.String (indent)
+import Steienr.Data.String (indent, quoted, spaced)
 import Steiner.Language.Ast (Expression)
 import Steiner.Language.Type (Type(..))
 
@@ -60,6 +60,7 @@ data TypeError
   | RecursiveType RecursiveTypeDetails
   | DifferentSkolemConstants String String
   | NeedsType Expression Type
+  | TypedNotInScope String Type
 
 instance errorRepTypeError :: ErrorRep TypeError where
   errorKind _ = TypeError
@@ -97,6 +98,12 @@ instance showTypeError :: Show TypeError where
       , indent 4 $ show ast
       , "needs type"
       , indent 4 $ show ty
+      ]
+  show (TypedNotInScope name ty) =
+    joinWith "\n"
+      [ "Variable" <> spaced (quoted name) <> "with expected type"
+      , indent 4 $ show ty
+      , "is not in scope"
       ]
 
 -- |
