@@ -15,7 +15,7 @@ import Node.Process (exit)
 import Node.ReadLine (Interface, createConsoleInterface, noCompletion)
 import Node.ReadLine.Aff (prompt, setPrompt)
 import Node.ReadLine.Aff as RL
-import Steienr.Language.TypeCheck.TypeCheck (Typed(..), check, infer, introduceSkolemScopes, subsumes, unify)
+import Steienr.Language.TypeCheck.TypeCheck (Typed(..), check, infer, introduceSkolemScopes, replaceUnknownsWithFreshVariables, subsumes, unify)
 import Steiner.Control.Monad.Check (runWithUnifyT)
 import Steiner.Control.Monad.Effect (print, printError, printString)
 import Steiner.Control.Monad.Unify (_currentSubstitution, runUnifyT, zonk, (?=))
@@ -45,7 +45,7 @@ execCommand interface str =
                 runWithUnifyT
                   $ do
                       Typed _ _ ty <- infer ast
-                      zonk ty
+                      replaceUnknownsWithFreshVariables <$> zonk ty
               pure $ print type'
             ViewAst ast -> pure $ print ast
             Unify type' type'' -> do

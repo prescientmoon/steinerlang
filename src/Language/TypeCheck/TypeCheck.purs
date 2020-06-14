@@ -4,10 +4,11 @@ import Prelude
 import Control.Monad.Error.Class (class MonadError)
 import Control.Monad.Reader (class MonadReader)
 import Data.Foldable (foldr)
+import Data.Map as Map
 import Data.Maybe (Maybe(..))
 import Data.Tuple (Tuple(..))
 import Steiner.Control.Monad.Check (CheckEnv, lookupVar, withVariable)
-import Steiner.Control.Monad.Unify (UnifyT, Unknown, fresh, substitute, zonk)
+import Steiner.Control.Monad.Unify (Substitution(..), UnifyT, Unknown, (?=), fresh, substitute, unknowns, zonk)
 import Steiner.Language.Ast (Expression(..), Literal(..), everywhereOnExpression)
 import Steiner.Language.Error (SteinerError, TheImpossibleHappened(..), TypeError(..), failWith, toSteinerError)
 import Steiner.Language.Type (SkolemScope(..), Type(..), everywhereOnTypeM, freeTypeVariables, replaceTypeVars, typeBoolean, typeFloat, typeInt, typeString)
@@ -62,6 +63,21 @@ replaceVarWithUnknown ident ty = do
   pure $ replaceTypeVars ident var ty
 
 -- |
+-- Find all the unknowns in a type and create fresh type variables in their place
+--
+replaceUnknownsWithFreshVariables :: Type -> Type
+replaceUnknownsWithFreshVariables ty =
+  foldr
+    ( \u current ->
+        let
+          name = "_t" <> show u
+        in
+          TForall name ((Substitution $ Map.singleton u (TVariable name)) ?= current) Nothing
+    )
+    ty
+    $ unknowns ty
+
+-- |
 -- Remove any foralls in a type by introducing new unknowns.
 --
 -- This is necessary during type checking to avoid unifying a polymorphic type with a
@@ -80,6 +96,9 @@ instantiate ty = pure ty
 skolemize :: String -> SkolemScope -> Unknown -> Type -> Type
 skolemize ident scope constant = replaceTypeVars ident $ Skolem ident constant scope
 
+-- |
+-- Skolemize all the types inside an ast
+--
 skolemizeTypesInValue :: String -> SkolemScope -> Unknown -> Expression -> Expression
 skolemizeTypesInValue ident scope constant = everywhereOnExpression go
   where
@@ -217,9 +236,30 @@ infer (Application function arg) = do
 
 infer (Let name value body) = do
   value'@(Typed _ _ typeValue) <- infer value
-  typeGeneralized <- quantify <$> zonk typeValue
+  typeGeneralized <- replaceUnknownsWithFreshVariables <$> zonk typeValue
   body'@(Typed _ _ typeBody) <- withVariable name typeGeneralized $ infer body
   pure $ Typed true (Let name (typedToExpression value') (typedToExpression body')) typeBody
+
+infer (Assume name ty body) = do
+  body'@(Typed _ _ typeBody) <- withVariable name ty $ infer body
+  pure $ Typed true (Assume name ty (typedToExpression body')) typeBody
+
+infer (TypedExpression checked expr ty) = do
+  ty' <- introduceSkolemScopes ty
+  typed <-
+    if not checked then
+      checkToExpression expr ty'
+    else
+      pure $ TypedExpression false expr ty
+  pure $ Typed true typed ty'
+
+infer (If condition then' else') = do
+  condition' <- checkToExpression condition typeBoolean
+  then''@(Typed _ _ typeThen) <- infer then'
+  else''@(Typed _ _ typeElse) <- infer else'
+  subsumes typeThen typeElse
+  subsumes typeElse typeThen
+  pure $ Typed true (If condition' (typedToExpression then'') (typedToExpression else'')) typeThen
 
 infer expr = failWith $ InvalidInference expr
 
@@ -322,10 +362,10 @@ checkApplication' fn (TForall ident ty scope) arg = do
   checkApplication fn replaced arg
 
 checkApplication' fn ty arg = do
-  tv@(Typed _ _ ty') <- do
+  tv@(Typed _ _ typeArg) <- do
     Typed _ arg' ty' <- infer arg
     Tuple arg'' ty'' <- instantiatePolyTypeWithUnknowns arg' ty'
     pure $ Typed true arg'' ty''
   return <- freshUnknown
-  unify ty (ty `TLambda` return)
+  unify ty (typeArg `TLambda` return)
   pure $ Typed true (Application fn $ typedToExpression tv) return

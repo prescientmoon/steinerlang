@@ -30,6 +30,7 @@ instance showLiteral :: Show Literal where
 data Expression
   = If Expression Expression Expression
   | Let String Expression Expression
+  | Assume String Type Expression
   | Lambda String Expression
   | Variable String
   | Literal Literal
@@ -52,6 +53,10 @@ everywhereOnExpressionM f = go'
     value' <- continue value
     body' <- continue body
     pure $ Let name value' body'
+
+  go continue (Assume name ty body) = do
+    body' <- continue body
+    pure $ Assume name ty body'
 
   go continue (Lambda arg body) = do
     body' <- continue body

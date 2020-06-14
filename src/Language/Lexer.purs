@@ -22,7 +22,7 @@ language =
     , opLetter: opChars
     , caseSensitive: true
     , reservedOpNames: [ ".", ":", "::", "->", "\\" ]
-    , reservedNames: [ "if", "then", "else", "let", "in" ] <> replCommands
+    , reservedNames: [ "if", "then", "else", "let", "in", "assume" ] <> replCommands
     , identStart: letter
     , identLetter: alphaNum <|> oneOf [ '_', '\'' ]
     }

@@ -40,7 +40,7 @@ expression' expr = do
       try $ reservedOp "::" *> parseType
     pure $ TypedExpression false expression'' annotation
 
-  atom = wrapped <|> ifExpr <|> letExpr <|> lambdaExpr <|> literal <|> variable
+  atom = wrapped <|> ifExpr <|> letExpr <|> assumeExpr <|> lambdaExpr <|> literal <|> variable
 
   wrapped = parens expr
 
@@ -63,6 +63,15 @@ expression' expr = do
     reserved "in"
     body <- expr
     pure $ Let name value body
+
+  assumeExpr = do
+    reserved "assume"
+    name <- identifier
+    reservedOp "::"
+    ty <- parseType
+    reserved "in"
+    body <- expr
+    pure $ Assume name ty body
 
   lambdaExpr = do
     reservedOp "\\"
