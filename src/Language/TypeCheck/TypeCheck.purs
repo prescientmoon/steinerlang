@@ -256,7 +256,44 @@ check (TypedExpression checked expression ty) other = do
       pure expression
   pure $ Typed true (TypedExpression checked expression' ty') other
 
+check (Application fn arg) ty = do
+  fn'@(Typed _ _ tyFunc) <- infer fn
+  Typed _ app tyReturn <- checkApplication (typedToExpression fn') tyFunc arg
+  subsumes ty tyReturn
+  pure $ Typed true app ty
+
 check expression ty = do
   Typed _ expression' inferredTyped <- infer expression
   inferredTyped `subsumes` ty
   pure $ Typed true expression ty
+
+-- |
+-- Check a functional application retsults in a certain type
+--
+checkApplication :: forall m. MonadError SteinerError m => MonadReader CheckEnv m => Expression -> Type -> Expression -> UnifyT Type m Typed
+checkApplication fn ty arg = do
+  ty' <- zonk ty
+  checkApplication' fn ty' arg
+
+-- |
+-- Internal version of checkApplication which doesn't zonk the types at the start 
+--
+checkApplication' :: forall m. MonadError SteinerError m => MonadReader CheckEnv m => Expression -> Type -> Expression -> UnifyT Type m Typed
+checkApplication' fn (TLambda from to) arg = do
+  arg' <- typedToExpression <$> check arg from
+  pure $ Typed true (Application fn arg') to
+
+checkApplication' fn (TForall ident ty scope) arg = do
+  tyUnknown <- freshUnknown
+  let
+    replaced = replaceTypeVars ident tyUnknown ty
+  checkApplication fn replaced arg
+
+checkApplication' fn ty arg = do
+  tv@(Typed _ _ ty') <- do
+    Typed _ arg' ty' <- infer arg
+    Tuple arg'' ty'' <- instantiatePolyTypeWithUnknowns arg' ty'
+    pure $ Typed true arg'' ty''
+  return <- freshUnknown
+  unify ty (ty `TLambda` return)
+  pure $ Typed true (Application fn $ typedToExpression tv) return

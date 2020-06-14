@@ -140,7 +140,7 @@ replCommand =
   )
     <* eof
   where
-  { reserved, identifier, reservedOp } = tokenParser
+  { reserved, identifier, reservedOp, parens } = tokenParser
 
   run = Exec <$> expression
 
@@ -164,7 +164,7 @@ replCommand =
 
   check = do
     reserved ":check"
-    ast <- expression
+    ast <- parens expression <|> expression
     ty <- parseType
     pure $ Check ast ty
 
