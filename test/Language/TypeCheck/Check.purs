@@ -70,6 +70,10 @@ spec =
         "\\a -> if a then 0 else 1" `shouldHaveType` "Boolean -> Int"
       it "should not accept other types as conditions" do
         "if 0 then 0 else 1" `shouldNotHaveType` "Int"
+      it "should allow the branches to have more polymorphic types" do
+        "\\a -> \\b -> if a then b :: forall b. b -> Int else b :: forall b. Int -> b"
+          `shouldHaveType`
+            "Boolean -> (forall a. forall b. a -> b) -> Int -> Int"
       it "should make sure both branches have the required type" do
         "\\a -> if a then 0 else 1.0" `shouldNotHaveType` "Boolean -> Int"
         "\\a -> if a then 0 else 1.0" `shouldNotHaveType` "Boolean -> Float"
@@ -93,3 +97,12 @@ spec =
       it "should not allow using the argument as the wrong type" do
         "\\a -> if a then a else a" `shouldNotHaveType` "Int -> Int"
         "\\a -> a :: forall a. a" `shouldNotHaveType` "(forall a. a -> a) -> forall a. a"
+    describe "Function calling" do
+      it "should allow calling with the correct argument" do
+        "(\\a -> a :: Int) 0" `shouldHaveType` "Int"
+      it "should not allow calling with the wrong argument" do
+        "(\\a -> a :: Float) 0.0" `shouldNotHaveType` "Int"
+      it "should allow calling with a more polymorphic argument" do
+        "(\\a -> (a :: Int -> Int) 0) ((\\a -> a) :: forall a.a -> a)" `shouldHaveType` "Int"
+      it "should not allow calling with less polymorphic arguments" do
+        "((\\id -> id 7) :: (forall a. a -> a) -> Int) (\\a -> a :: Int)" `shouldNotHaveType` "Int"

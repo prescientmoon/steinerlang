@@ -261,8 +261,7 @@ infer (If condition then' else') = do
   subsumes typeElse typeThen
   pure $ Typed true (If condition' (typedToExpression then'') (typedToExpression else'')) typeThen
 
-infer expr = failWith $ InvalidInference expr
-
+-- infer expr = failWith $ InvalidInference expr
 -- |
 -- Check if an expression has a certain type and return an expression instead of a Typed
 --
