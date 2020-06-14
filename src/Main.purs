@@ -16,7 +16,7 @@ import Node.ReadLine (Interface, createConsoleInterface, noCompletion)
 import Node.ReadLine.Aff (prompt, setPrompt)
 import Node.ReadLine.Aff as RL
 import Steienr.Data.String (indent)
-import Steienr.Language.TypeCheck.TypeCheck (Typed(..), check, infer, introduceSkolemScopes, subsumes, typedToExpression, unify)
+import Steienr.Language.TypeCheck.TypeCheck (Typed(..), check, infer, introduceSkolemScopes, subsumes, unify)
 import Steiner.Control.Monad.Check (runWithUnifyT)
 import Steiner.Control.Monad.Effect (print, printError, printString)
 import Steiner.Control.Monad.Unify (_currentSubstitution, runUnifyT, (?=))
@@ -55,6 +55,7 @@ execCommand interface str =
                     , "and the new expression looks like"
                     , indent 4 $ show newExpr
                     ]
+            ViewAst ast -> pure $ print ast
             Unify type' type'' -> do
               st <-
                 runUnifyT do
@@ -80,7 +81,7 @@ execCommand interface str =
                 >>= check ast
               pure
                 $ printString
-                    "Type checking went fine! Here's the new expression"
+                    "Type checking went fine!"
             Quit ->
               pure do
                 RL.close interface

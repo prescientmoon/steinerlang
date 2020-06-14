@@ -237,7 +237,7 @@ check expression@(Variable name) ty = do
     Nothing -> failWith $ TypedNotInScope name ty
     Just var -> do
       skolemisedVar <- introduceSkolemScopes var
-      subsumes skolemisedVar ty
+      subsumes ty skolemisedVar
       pure $ Typed true expression ty
 
 check (If condition then' else') ty = do
@@ -248,7 +248,7 @@ check (If condition then' else') ty = do
 
 check (TypedExpression checked expression ty) other = do
   ty' <- introduceSkolemScopes ty
-  subsumes ty' other
+  subsumes other ty'
   expression' <-
     if not checked then
       checkToExpression expression ty'
@@ -256,4 +256,7 @@ check (TypedExpression checked expression ty) other = do
       pure expression
   pure $ Typed true (TypedExpression checked expression' ty') other
 
-check ast ty = failWith $ NeedsType ast ty
+check expression ty = do
+  Typed _ expression' inferredTyped <- infer expression
+  inferredTyped `subsumes` ty
+  pure $ Typed true expression ty

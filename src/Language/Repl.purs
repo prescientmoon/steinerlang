@@ -44,9 +44,13 @@ data Command
   -- Some other unknown command
   --
   | InvalidCommand String
+  -- |
+  -- Print the ast directly to the console
+  --
+  | ViewAst Expression
 
 -- |
 -- Shortcuts for those commands used for parsing
 --
 replCommands :: Array String
-replCommands = (":" <> _) <$> [ "t", "u", "q", "s", "clear", "check" ]
+replCommands = (":" <> _) <$> [ "t", "u", "q", "s", "clear", "check", "ast" ]

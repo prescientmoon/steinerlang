@@ -2,9 +2,10 @@ module Steiner.Language.Parser (expression, replCommand, parseType) where
 
 import Prelude
 import Control.Lazy (fix)
-import Control.MonadPlus ((<|>))
+import Control.MonadPlus (empty, (<|>))
 import Data.Char.Unicode (isUpper)
 import Data.Either (either)
+import Data.Foldable (foldr)
 import Data.Identity (Identity)
 import Data.Maybe (Maybe(..), maybe)
 import Data.String.Yarn ((!!))
@@ -23,9 +24,16 @@ import Text.Parsing.Parser.String (eof)
 expression' :: ParserT String Identity Expression -> ParserT String Identity Expression
 expression' expr = do
   expression'' <- atom
-  withAnnotation expression'' <|> pure expression''
+  expression''' <- withCall expression'' <|> pure expression''
+  withAnnotation expression''' <|> pure expression'''
   where
   { parens, identifier, reserved, reservedOp, stringLiteral, naturalOrFloat } = tokenParser
+
+  withCall expression'' = do
+    argument <- try atom
+    let
+      app = Application expression'' argument
+    withCall app <|> pure app
 
   withAnnotation expression'' = do
     annotation <-
@@ -116,7 +124,21 @@ parseType = fix parseType'
 -- Parses a repl command
 --
 replCommand :: Parser String Command
-replCommand = (typeOf <|> clear <|> quit <|> run <|> check <|> unify <|> subsumes <|> noCommand <|> invalidCommand) <* eof
+replCommand =
+  ( foldr (<|>) empty
+      [ typeOf
+      , clear
+      , quit
+      , run
+      , check
+      , unify
+      , subsumes
+      , noCommand
+      , viewAst
+      , invalidCommand
+      ]
+  )
+    <* eof
   where
   { reserved, identifier, reservedOp } = tokenParser
 
@@ -145,6 +167,8 @@ replCommand = (typeOf <|> clear <|> quit <|> run <|> check <|> unify <|> subsume
     ast <- expression
     ty <- parseType
     pure $ Check ast ty
+
+  viewAst = ViewAst <$> (reserved ":ast" *> expression)
 
   noCommand = NoCommand <$ eof
 
