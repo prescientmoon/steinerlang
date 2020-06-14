@@ -15,11 +15,10 @@ import Node.Process (exit)
 import Node.ReadLine (Interface, createConsoleInterface, noCompletion)
 import Node.ReadLine.Aff (prompt, setPrompt)
 import Node.ReadLine.Aff as RL
-import Steienr.Data.String (indent)
 import Steienr.Language.TypeCheck.TypeCheck (Typed(..), check, infer, introduceSkolemScopes, subsumes, unify)
 import Steiner.Control.Monad.Check (runWithUnifyT)
 import Steiner.Control.Monad.Effect (print, printError, printString)
-import Steiner.Control.Monad.Unify (_currentSubstitution, runUnifyT, (?=))
+import Steiner.Control.Monad.Unify (_currentSubstitution, runUnifyT, zonk, (?=))
 import Steiner.Language.Parser (replCommand)
 import Steiner.Language.Repl (Command(..))
 import Text.Parsing.Parser (runParserT)
@@ -42,19 +41,12 @@ execCommand interface str =
           (result :: Either _ _) = case command of
             Exec ast -> pure $ printString "Executing code isn't a thing yet:)"
             TypeOf ast -> do
-              Tuple (Typed _ newExpr type') state <-
-                runUnifyT do
-                  infer ast
-              let
-                sub = view _currentSubstitution state
-              pure $ printString
-                $ joinWith "\n"
-                    [ "Type inference finished succesfully!"
-                    , "The expression has type"
-                    , indent 4 $ show $ sub ?= type'
-                    , "and the new expression looks like"
-                    , indent 4 $ show newExpr
-                    ]
+              Tuple type' _ <-
+                runWithUnifyT
+                  $ do
+                      Typed _ _ ty <- infer ast
+                      zonk ty
+              pure $ print type'
             ViewAst ast -> pure $ print ast
             Unify type' type'' -> do
               st <-

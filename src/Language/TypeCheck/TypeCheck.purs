@@ -188,7 +188,39 @@ subsumes' ty ty' = ty `unify` ty'
 -- |
 -- Infer the type of an expression
 --
-infer :: forall m. MonadError SteinerError m => Expression -> UnifyT Type m Typed
+infer :: forall m. MonadError SteinerError m => MonadReader CheckEnv m => Expression -> UnifyT Type m Typed
+infer expression@(Literal (IntLit _)) = pure $ Typed true expression typeInt
+
+infer expression@(Literal (FloatLit _)) = pure $ Typed true expression typeFloat
+
+infer expression@(Literal (StringLit _)) = pure $ Typed true expression typeString
+
+infer (Lambda arg body) = do
+  typeArg <- freshUnknown
+  withVariable arg typeArg do
+    body'@(Typed _ _ typeBody) <- infer body
+    Tuple body'' typeBody' <- instantiatePolyTypeWithUnknowns (typedToExpression body') typeBody
+    pure $ Typed true (Lambda arg body'') $ TLambda typeArg typeBody'
+
+infer (Variable name) = do
+  maybeTy <- lookupVar name
+  case maybeTy of
+    Nothing -> failWith $ NotInScope name
+    Just ty -> do
+      ty' <- introduceSkolemScopes ty
+      pure $ Typed true (Variable name) ty
+
+infer (Application function arg) = do
+  function'@(Typed _ _ typeFunction) <- infer function
+  Typed _ app typeReturn <- checkApplication (typedToExpression function') typeFunction arg
+  pure $ Typed true app typeReturn
+
+infer (Let name value body) = do
+  value'@(Typed _ _ typeValue) <- infer value
+  typeGeneralized <- quantify <$> zonk typeValue
+  body'@(Typed _ _ typeBody) <- withVariable name typeGeneralized $ infer body
+  pure $ Typed true (Let name (typedToExpression value') (typedToExpression body')) typeBody
+
 infer expr = failWith $ InvalidInference expr
 
 -- |

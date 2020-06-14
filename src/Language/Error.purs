@@ -61,6 +61,7 @@ data TypeError
   | DifferentSkolemConstants String String
   | NeedsType Expression Type
   | TypedNotInScope String Type
+  | NotInScope String
 
 instance errorRepTypeError :: ErrorRep TypeError where
   errorKind _ = TypeError
@@ -105,6 +106,7 @@ instance showTypeError :: Show TypeError where
       , indent 4 $ show ty
       , "is not in scope"
       ]
+  show (NotInScope name) = "Variable" <> spaced (quoted name) <> "is not in scope"
 
 -- |
 -- Errors which shouldn't appear to the end user
