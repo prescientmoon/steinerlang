@@ -236,7 +236,7 @@ infer (Application function arg) = do
 
 infer (Let name value body) = do
   value'@(Typed _ _ typeValue) <- infer value
-  typeGeneralized <- replaceUnknownsWithFreshVariables <$> zonk typeValue
+  typeGeneralized <- quantify <$> zonk typeValue
   body'@(Typed _ _ typeBody) <- withVariable name typeGeneralized $ infer body
   pure $ Typed true (Let name (typedToExpression value') (typedToExpression body')) typeBody
 
